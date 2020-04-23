@@ -34,38 +34,40 @@ python train.py \
 --weights "nn_models/best_resnet152_2.h5"
 
 
-##################### InceptionResnetV2 FPN with Sigmoid activation ##############################
+##################### Densenet169 FPN with Softmax activation ##############################
 
 python train.py \
 --gpu "0,1,2,3"  \
 --num_workers 8  \
---network resnetv2 \
+--network densenet169_softmax \
 --freeze_till_layer input_1  \
---loss double_head_loss \
+--loss categorical_dice \
 --optimizer adam  \
+--use_softmax \
 --learning_rate 0.0001  \
 --decay 0.0001  \
---batch_size 12  \
+--batch_size 10  \
 --crop_size 256 \
 --steps_per_epoch 500 \
---epochs 2 \
---preprocessing_function caffe
+--epochs 10 \
+--preprocessing_function torch
 
 python train.py \
 --gpu "0,1,2,3" \
 --num_workers 8 \
 --network densenet169_softmax \
 --freeze_till_layer input_1 \
---loss double_head_loss \
+--loss categorical_dice \
 --optimizer adam \
+--use_softmax \
 --learning_rate 0.0001 \
 --decay 0.0001 \
---batch_size 12 \
+--batch_size 10 \
 --crop_size 256 \
 --steps_per_epoch 500 \
 --epochs 70 \
---preprocessing_function caffe \
---weights "nn_models/best_resnetv2.h5"
+--preprocessing_function torch \
+--weights "nn_models/best_densenet169_softmax.h5"
 
 ##################### Resnet101 FPN  Full masks with Sigmoid activation ##############################
 
@@ -78,10 +80,10 @@ python train.py \
 --optimizer adam  \
 --learning_rate 0.0001  \
 --decay 0.0001  \
---batch_size 12  \
+--batch_size 10  \
 --crop_size 224 \
 --steps_per_epoch 500 \
---epochs 2 \
+--epochs 10 \
 --use_full_masks \
 --preprocessing_function caffe
 
@@ -94,7 +96,7 @@ python train.py \
 --optimizer adam  \
 --learning_rate 0.0001  \
 --decay 0.0001  \
---batch_size 12  \
+--batch_size 10  \
 --crop_size 256 \
 --steps_per_epoch 500 \
 --epochs 70 \

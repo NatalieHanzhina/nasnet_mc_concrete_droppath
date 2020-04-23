@@ -19,7 +19,7 @@ import random
 random.seed(1)
 import tensorflow as tf
 
-tf.set_random_seed(1)
+tf.random.set_seed(1)
 import timeit
 import cv2
 from tqdm import tqdm
@@ -48,13 +48,18 @@ if __name__ == '__main__':
         models.append(model)
     os.makedirs(test_pred, exist_ok=True)
     print('Predicting test')
-    for d in tqdm(listdir(test_folder)):
-        if not path.isdir(path.join(test_folder, d)):
-            continue
+    for f in tqdm(listdir(os.path.join(test_folder, 'image_val'))):
+        #if not path.exists(path.join(test_folder, d)):
+        #    continue
         final_mask = None
         for scale in range(1):
-            fid = d
-            img = cv2.imread(path.join(test_folder, fid, 'images', '{0}.png'.format(fid)), cv2.IMREAD_COLOR)[...,::-1]
+            #fid = d
+            #img = cv2.imread(path.join(test_folder, fid, 'image_val', '{0}.png'.format(fid)), cv2.IMREAD_COLOR)[...,::-1]
+            #img = cv2.imread(path.join(test_folder, 'image_val', f), cv2.IMREAD_COLOR)[...,::-1]
+            if img_path.endswith('.nii.gz'):
+                img = nib.load(img_path)[..., ::-1] #?
+            elif img_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
+                img = cv2.imread(img_path, cv2.IMREAD_COLOR)[..., :-1]
 
             if final_mask is None:
                 final_mask = np.zeros((img.shape[0], img.shape[1], OUT_CHANNELS))
@@ -124,7 +129,8 @@ if __name__ == '__main__':
             final_mask = np.concatenate([final_mask, np.zeros_like(final_mask)[..., 0:1]], axis=-1)
         final_mask = final_mask * 255
         final_mask = final_mask.astype('uint8')
-        cv2.imwrite(path.join(test_pred, '{0}.png'.format(fid)), final_mask, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        #cv2.imwrite(path.join(test_pred, '{0}.png'.format(fid)), final_mask, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        cv2.imwrite(path.join(test_pred, f), final_mask, [cv2.IMWRITE_PNG_COMPRESSION, 9])
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))

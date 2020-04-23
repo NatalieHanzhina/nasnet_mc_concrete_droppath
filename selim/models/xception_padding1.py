@@ -132,7 +132,7 @@ def Xception(include_top=True, weights='imagenet',
                                       min_size=71,
                                       data_format=K.image_data_format(),
                                       require_flatten=False,
-                                      weights=weights)
+                                      weights=None)  # weights=None to prevent input channels equality check
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -245,6 +245,13 @@ def Xception(include_top=True, weights='imagenet',
         inputs = img_input
     # Create model.
     model = Model(inputs, x, name='xception')
+    # Create donor model
+    if input_shape[-1] > 3 and weights is not None:
+        input_shape1 = (*input_shape[:-1], 3)
+        donor_model = get_donor_model(include_top, weights, input_tensor=None,
+                                      input_shape=input_shape1,
+                                      pooling=pooling,
+                                      classes=classes)
 
     # load weights
     if weights == 'imagenet':
@@ -258,13 +265,147 @@ def Xception(include_top=True, weights='imagenet',
                                     TF_WEIGHTS_PATH_NO_TOP,
                                     cache_subdir='models',
                                     file_hash='b0042744bf5b25fce3cb969f33bebb97')
-        model.load_weights(weights_path)
+        if input_shape[-1] > 3:
+            donor_model.load_weights(weights_path)
+            donor_weights = donor_model.get_weights()
+            final_donor_weights = model.get_weights()[:1] + donor_weights[1:]
+            final_donor_weights[0][:, :, :3, :] = donor_weights[0]
+            model.set_weights(final_donor_weights)
+            del donor_model, donor_weights
+        else:
+            model.load_weights(weights_path)
     elif weights is not None:
         model.load_weights(weights)
 
     if old_data_format:
         K.set_image_data_format(old_data_format)
     return model
+
+
+def get_donor_model(include_top=True, weights='imagenet',
+             input_tensor=None, input_shape=None,
+             pooling=None,
+             classes=1000):
+    input_shape = _obtain_input_shape(input_shape,
+                                      default_size=299,
+                                      min_size=71,
+                                      data_format=K.image_data_format(),
+                                      require_flatten=False,
+                                      weights=None)  # weights=None to prevent input channels equality check
+
+    if input_tensor is None:
+        img_input = Input(shape=input_shape)
+    else:
+        if not K.is_keras_tensor(input_tensor):
+            img_input = Input(tensor=input_tensor, shape=input_shape)
+        else:
+            img_input = input_tensor
+
+    x = Conv2D(32, (3, 3), strides=(2, 2), use_bias=False, name='block1_conv1', padding="same")(img_input)
+    x = BatchNormalization(name='block1_conv1_bn')(x)
+    x = Activation('relu', name='block1_conv1_act')(x)
+    x = Conv2D(64, (3, 3), use_bias=False, name='block1_conv2', padding='same')(x)
+    x = BatchNormalization(name='block1_conv2_bn')(x)
+    x = Activation('relu', name='block1_conv2_act')(x)
+
+    residual = Conv2D(128, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+    x = BatchNormalization(name='block2_sepconv1_bn')(x)
+    x = Activation('relu', name='block2_sepconv2_act')(x)
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+    x = BatchNormalization(name='block2_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block2_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(256, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block3_sepconv1_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+    x = BatchNormalization(name='block3_sepconv1_bn')(x)
+    x = Activation('relu', name='block3_sepconv2_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+    x = BatchNormalization(name='block3_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block3_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(728, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block4_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv1')(x)
+    x = BatchNormalization(name='block4_sepconv1_bn')(x)
+    x = Activation('relu', name='block4_sepconv2_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv2')(x)
+    x = BatchNormalization(name='block4_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block4_pool')(x)
+    x = layers.add([x, residual])
+
+    for i in range(8):
+        residual = x
+        prefix = 'block' + str(i + 5)
+
+        x = Activation('relu', name=prefix + '_sepconv1_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv1')(x)
+        x = BatchNormalization(name=prefix + '_sepconv1_bn')(x)
+        x = Activation('relu', name=prefix + '_sepconv2_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv2')(x)
+        x = BatchNormalization(name=prefix + '_sepconv2_bn')(x)
+        x = Activation('relu', name=prefix + '_sepconv3_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv3')(x)
+        x = BatchNormalization(name=prefix + '_sepconv3_bn')(x)
+
+        x = layers.add([x, residual])
+
+    residual = Conv2D(1024, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block13_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block13_sepconv1')(x)
+    x = BatchNormalization(name='block13_sepconv1_bn')(x)
+    x = Activation('relu', name='block13_sepconv2_act')(x)
+    x = SeparableConv2D(1024, (3, 3), padding='same', use_bias=False, name='block13_sepconv2')(x)
+    x = BatchNormalization(name='block13_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block13_pool')(x)
+    x = layers.add([x, residual])
+
+    x = SeparableConv2D(1536, (3, 3), padding='same', use_bias=False, name='block14_sepconv1')(x)
+    x = BatchNormalization(name='block14_sepconv1_bn')(x)
+    x = Activation('relu', name='block14_sepconv1_act')(x)
+
+    x = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+    x = BatchNormalization(name='block14_sepconv2_bn')(x)
+    x = Activation('relu', name='block14_sepconv2_act')(x)
+
+    if include_top:
+        x = GlobalAveragePooling2D(name='avg_pool')(x)
+        x = Dense(classes, activation='softmax', name='predictions')(x)
+    else:
+        if pooling == 'avg':
+            x = GlobalAveragePooling2D()(x)
+        elif pooling == 'max':
+            x = GlobalMaxPooling2D()(x)
+
+    # Ensure that the model takes into account
+    # any potential predecessors of `input_tensor`.
+    if input_tensor is not None:
+        inputs = get_source_inputs(input_tensor)
+    else:
+        inputs = img_input
+
+    return Model(inputs, x, name='xception')
+
+
 
 if __name__ == '__main__':
     Xception(include_top=False, input_shape=(256, 256, 3)).summary()

@@ -1,10 +1,10 @@
 
-from keras import Model, Input
-from keras.applications import DenseNet169
-from keras.layers import UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
-from keras.utils import get_file
+from tensorflow.keras import Model, Input
+from tensorflow.keras.applications import DenseNet169
+from tensorflow.keras.layers import UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
+from tensorflow.keras.utils import get_file
 
-from models.xception_padding import Xception
+from models.xception_padding1 import Xception
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
 
@@ -212,8 +212,9 @@ def resnet101_fpn(input_shape, channels=1, activation="softmax"):
     model = Model(img_input, x)
     return model
 
-def xception_fpn(input_shape, channels=1, activation="sigmoid"):
-    xception = Xception(input_shape=input_shape, include_top=False)
+
+def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoid"):
+    xception = Xception(input_shape=input_shape, weights=weights, include_top=False)
     conv1 = xception.get_layer("block1_conv2_act").output
     conv2 = xception.get_layer("block3_sepconv2_bn").output
     conv3 = xception.get_layer("block4_sepconv2_bn").output

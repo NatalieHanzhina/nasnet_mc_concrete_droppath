@@ -7,10 +7,12 @@ keras_resnet.models._2d
 This module implements popular two-dimensional residual models.
 """
 
-import keras.backend
-import keras.layers
-import keras.models
-import keras.regularizers
+
+from tensorflow import keras
+import tensorflow.keras.backend
+import tensorflow.keras.layers
+import tensorflow.keras.models
+import tensorflow.keras.regularizers
 
 def ResNet(inputs, blocks, block, include_top=True, classes=1000, numerical_names=None, *args, **kwargs):
     """
@@ -282,8 +284,8 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top, classes=classes, *args, **kwargs)
 
 
-import keras.layers
-import keras.regularizers
+import tensorflow.keras.layers
+import tensorflow.keras.regularizers
 
 import keras_resnet.layers
 

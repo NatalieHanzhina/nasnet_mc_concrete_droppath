@@ -2,13 +2,13 @@ import argparse
 
 parser = argparse.ArgumentParser()
 arg = parser.add_argument
+arg('--channels', type=int, default="3")
 arg('--gpu', default="0")
 arg('--epochs', type=int, default=100)
-arg('--fold', default='0')
-arg('--n_folds', type=int, default=4)
 arg('--freeze_till_layer', default='input_1')
 arg('--preprocessing_function')
 arg('--weights')
+arg('--pretrained_weights', default='imagenet')
 arg('--learning_rate', type=float, default=0.001)
 arg('--crop_size', type=int, default=192)
 arg('--crops_per_image', type=int, default=1)
@@ -28,14 +28,17 @@ arg('--use_full_masks', action="store_true")
 arg('--multi_gpu', action="store_true")
 arg('--seed', type=int, default=777)
 arg('--models_dir', default='nn_models')
-arg('--images_dir', default='../data/images_all')
-arg('--masks_dir', default='../data/masks_all')
-arg('--labels_dir', default='../data/labels_all')
+arg('--images_dir', default='../data/image')
+arg('--masks_dir', default='../data/mask')
+arg('--labels_dir', default='../data/label')
+arg('--log_dir', default='xception_fpn_local')
 arg('--test_folder', default='../data_test')
-arg('--folds_csv', default='../data/folds.csv')
-arg('--out_root_dir', default='../predictions')
+arg('--out_root_dir', default='./../predictions')
 arg('--out_masks_folder')
 arg('--models',  nargs='+')
 arg('--out_channels',  type=int, default=2)
 
 args = parser.parse_args()
+
+if args.pretrained_weights == "None":
+    args.pretrained_weights = None

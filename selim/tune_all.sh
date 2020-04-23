@@ -4,7 +4,6 @@
 ##################### Resnet152 FPN  with Sigmoid activation ##############################
 python train.py \
 --gpu "0"  \
---fold "0,1,2,3" \
 --num_workers 8  \
 --network resnet152_2 \
 --freeze_till_layer input_1  \
@@ -17,14 +16,13 @@ python train.py \
 --steps_per_epoch 500 \
 --epochs 16 \
 --preprocessing_function caffe \
---weights "nn_models/best_resnet152_2_fold{}.h5"
+--weights "nn_models/best_resnet152_2.h5"
 
 
 ##################### Densenet169 FPN with Softmax activation ##############################
 
 python train.py \
 --gpu "0"  \
---fold "0,1,2,3" \
 --num_workers 8  \
 --network densenet169_softmax \
 --freeze_till_layer input_1  \
@@ -38,13 +36,12 @@ python train.py \
 --steps_per_epoch 500 \
 --epochs 16 \
 --preprocessing_function torch \
---weights "nn_models/best_densenet169_softmax_fold{}.h5"
+--weights "nn_models/best_densenet169_softmax.h5"
 
 ##################### Resnet101 FPN  Full masks with Sigmoid activation ##############################
 
 python train.py \
 --gpu "0"  \
---fold "0,1,2,3" \
 --num_workers 8  \
 --network resnet101_2 \
 --freeze_till_layer input_1  \
@@ -58,5 +55,5 @@ python train.py \
 --epochs 16 \
 --use_full_masks \
 --preprocessing_function caffe \
---weights "nn_models/best_resnet101_2_fold{}.h5"
+--weights "nn_models/best_resnet101_2.h5"
 
