@@ -5,9 +5,12 @@ import time
 from abc import abstractmethod
 
 import cv2
+import nibabel as nib
 import numpy as np
-from keras.applications import imagenet_utils
-from keras.preprocessing.image import Iterator, load_img, img_to_array
+from skimage.color import rgb2gray
+from skimage.morphology import square, dilation
+from tensorflow.keras.applications import imagenet_utils
+from tensorflow.keras.preprocessing.image import Iterator, load_img, img_to_array
 
 from params import args
 
@@ -18,6 +21,8 @@ class BaseMaskDatasetIterator(Iterator):
                  masks_dir,
                  labels_dir,
                  image_ids,
+                 images_paths,
+                 channels,
                  crop_shape,
                  preprocessing_function,
                  random_transformer=None,
@@ -34,6 +39,8 @@ class BaseMaskDatasetIterator(Iterator):
         self.masks_dir = masks_dir
         self.labels_dir = labels_dir
         self.image_ids = image_ids
+        self.image_paths = images_paths
+        self.channels = channels
         self.image_name_template = image_name_template
         self.mask_template = mask_template
         self.label_template = label_template
@@ -51,6 +58,38 @@ class BaseMaskDatasetIterator(Iterator):
     def transform_mask(self, mask, image):
         raise NotImplementedError
 
+    def preprocess_mask(self, mask):
+        if len(mask.shape) == 3:
+            if mask.shape[2] != 3:
+                raise NotImplementedError('Such mask dimensions are not supported')
+            mask = rgb2gray(mask)
+        if len(mask.shape) > 3:
+            raise NotImplementedError('Such mask dimensions are not supported')
+
+        # kernel = np.asarray([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+        kernel = square(16)
+        bg = dilation(mask, kernel).astype('uint8')
+        boarder = np.subtract(bg, mask)
+        mask = np.stack((mask, boarder), axis=-1)
+        return mask
+
+    def create_opencv_mask(self, labels):
+        if self.grayscale_mask:
+            labels = cv2.cvtColor(labels, cv2.COLOR_BGR2GRAY)
+
+        tmp = labels.copy()
+        tmp = tmp.astype('uint8')
+
+        threshold_level = 127  # Set as you need...
+        _, binarized = cv2.threshold(tmp, threshold_level, 255, cv2.THRESH_BINARY)
+        contours, hierarchy = cv2.findContours(binarized, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        msk1 = np.zeros_like(tmp, dtype='uint8')
+        msk1 = cv2.drawContours(msk1, contours, -1, (255, 255, 255), 2, cv2.LINE_AA)
+        msk2 = np.zeros_like(tmp, dtype='uint8')
+        msk = np.stack((labels, msk1, msk2))
+        msk = np.rollaxis(msk, 0, 3)
+        return msk
+
     def augment_and_crop_mask_image(self, mask, image, label, img_id, crop_shape):
         return mask, image, label
 
@@ -62,16 +101,31 @@ class BaseMaskDatasetIterator(Iterator):
         batch_y = []
 
         for batch_index, image_index in enumerate(index_array):
-            id = self.image_ids[image_index]
-            img_name = self.image_name_template.format(id=id)
-            path = os.path.join(self.images_dir, img_name)
-            image = np.array(img_to_array(load_img(path)), "uint8")
-            mask_name = self.mask_template.format(id=id)
-            mask_path = os.path.join(self.masks_dir, mask_name)
-            mask = cv2.imread(mask_path, cv2.IMREAD_COLOR)
-            label = cv2.imread(os.path.join(self.labels_dir, self.label_template.format(id=id)), cv2.IMREAD_UNCHANGED)
+            id_in_archive = self.image_ids[image_index]
+            #img_name = self.image_name_template.format(id=id)
+            #img_path = os.path.join(self.images_dir, img_name)
+            img_path = self.image_paths[image_index]
+            if img_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
+                image = np.array(img_to_array(load_img(img_path)), "uint8")
+            elif img_path.rfind('.nii.gz') or img_path.rfind('.nii') or os.path.isdir(img_path):
+                image = self.read_nii_gz_img_archive(img_path, id_in_archive)
+            else:
+                raise ValueError("Unsupported type of image input data")
+            #mask_name = self.mask_template.format(id=id)
+            #mask_path = os.path.join(self.masks_dir, mask_name)
+            mask_path = self.image_paths[image_index].replace(self.images_dir, self.masks_dir)
+            if mask_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
+                mask = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+            elif mask_path.endswith('.nii.gz') or mask_path.endswith('.nii') or os.path.isdir(mask_path):
+                mask = self.read_nii_gz_msk_archive(mask_path, id_in_archive)
+            else:
+                raise ValueError("Unsupported type of mask input data")
+            #label = cv2.imread(os.path.join(self.labels_dir, self.label_template.format(id=id)), cv2.IMREAD_UNCHANGED)
+            #mask = self.preprocess_mask(mask)
+            mask = self.create_opencv_mask(mask)
             if args.use_full_masks:
-                mask[...,0] = (label > 0) * 255
+                pass
+                #mask[...,0] = (label > 0) * 255
             if self.crop_shape is not None:
                 crop_mask, crop_image, crop_label = self.augment_and_crop_mask_image(mask, image, label, id, self.crop_shape)
                 data = self.random_transformer(image=np.array(crop_image, "uint8"), mask=np.array(crop_mask, "uint8"))
@@ -100,6 +154,30 @@ class BaseMaskDatasetIterator(Iterator):
         if self.preprocessing_function:
             batch_x = imagenet_utils.preprocess_input(batch_x, mode=self.preprocessing_function)
         return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
+
+    def read_nii_gz_img_archive(self, img_path, id_in_archive):
+        img = []
+        for i, channel in enumerate(os.listdir(img_path)):
+            if i >= self.channels:
+                break
+            channel_path = os.path.join(img_path, channel)
+            if channel.endswith('nii.gz') or channel.endswith('.nii'):
+                nib_fs = nib.load(channel_path)
+            else:
+                nib_fs = nib.load(os.path.join(channel_path, os.listdir(channel_path)[0]))
+            img.append(nib_fs.get_fdata()[..., id_in_archive])
+        image = np.asarray(img)
+        image = image.transpose((1, 2, 0))
+        return image
+
+    @staticmethod
+    def read_nii_gz_msk_archive(msk_path, id_in_archive):
+        nii_gz_mask_path = os.path.join(msk_path, os.listdir(msk_path)[0])
+        if nii_gz_mask_path.endswith('nii.gz') or nii_gz_mask_path.endswith('.nii'):
+            nib_fs = nib.load(nii_gz_mask_path)
+        else:
+            nib_fs = nib.load(os.path.join(nii_gz_mask_path, os.listdir(nii_gz_mask_path)[0]))
+        return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
         return batch_x
