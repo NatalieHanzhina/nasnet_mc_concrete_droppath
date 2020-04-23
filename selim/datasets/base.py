@@ -1,18 +1,16 @@
 
 import os
-import random
 import time
 from abc import abstractmethod
 
 import cv2
 import nibabel as nib
 import numpy as np
+from params import args
 from skimage.color import rgb2gray
 from skimage.morphology import square, dilation
 from tensorflow.keras.applications import imagenet_utils
 from tensorflow.keras.preprocessing.image import Iterator, load_img, img_to_array
-
-from params import args
 
 
 class BaseMaskDatasetIterator(Iterator):
@@ -115,7 +113,8 @@ class BaseMaskDatasetIterator(Iterator):
             #mask_path = os.path.join(self.masks_dir, mask_name)
             mask_path = self.image_paths[image_index].replace(self.images_dir, self.masks_dir)
             if mask_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
-                mask = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+                #mask = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+                mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             elif mask_path.endswith('.nii.gz') or mask_path.endswith('.nii') or os.path.isdir(mask_path):
                 mask = self.read_nii_gz_msk_archive(mask_path, id_in_archive)
             else:
