@@ -256,16 +256,19 @@ def Xception(include_top=True, weights='imagenet',
     # load weights
     if weights == 'imagenet':
         if include_top:
+            print('Loading pretrained ImageNet weights, include top')
             weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels.h5',
                                     TF_WEIGHTS_PATH,
                                     cache_subdir='models',
                                     file_hash='0a58e3b7378bc2990ea3b43d5981f1f6')
         else:
+            print('Loading pretrained ImageNet weights, exclude top')
             weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels_notop.h5',
                                     TF_WEIGHTS_PATH_NO_TOP,
                                     cache_subdir='models',
                                     file_hash='b0042744bf5b25fce3cb969f33bebb97')
         if input_shape[-1] > 3:
+            print(f'Copying pretrained ImageNet weights to models with {input_shape[-1]}')
             donor_model.load_weights(weights_path)
             donor_weights = donor_model.get_weights()
             final_donor_weights = model.get_weights()[:1] + donor_weights[1:]
