@@ -164,3 +164,9 @@ masks_all
 labels_all
 folds.csv
 lgbm_models
+albu/logs/*
+albu/src/pytorch_utils/*.py.*
+data/*
+data_nii_gz/*
+data_test/*
+predictions/*

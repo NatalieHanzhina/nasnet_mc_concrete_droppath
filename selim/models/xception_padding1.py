@@ -268,7 +268,7 @@ def Xception(include_top=True, weights='imagenet',
                                     cache_subdir='models',
                                     file_hash='b0042744bf5b25fce3cb969f33bebb97')
         if input_shape[-1] > 3:
-            print(f'Copying pretrained ImageNet weights to models with {input_shape[-1]}')
+            print(f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels')
             donor_model.load_weights(weights_path)
             donor_weights = donor_model.get_weights()
             final_donor_weights = model.get_weights()[:1] + donor_weights[1:]

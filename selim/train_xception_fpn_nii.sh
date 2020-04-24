@@ -12,7 +12,6 @@ python train.py \
 --learning_rate 0.0001  \
 --decay 0.0001  \
 --batch_size 16  \
---crop_size 256 \
 --steps_per_epoch 500 \
 --epochs 2 \
 --preprocessing_function caffe \
@@ -30,7 +29,6 @@ python train.py \
 --learning_rate 0.0001 \
 --decay 0.0001 \
 --batch_size 16 \
---crop_size 256 \
 --steps_per_epoch 500 \
 --epochs 98 \
 --preprocessing_function caffe \

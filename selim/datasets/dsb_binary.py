@@ -2,10 +2,12 @@ import random
 import os
 import cv2
 import numpy as np
+import nibabel as nib
 import pandas as pd
 from skimage import measure
 from skimage.filters import median
 from skimage.morphology import dilation, watershed, square, erosion
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from datasets.base import BaseMaskDatasetIterator
@@ -13,100 +15,123 @@ from params import args
 
 
 class DSB2018BinaryDataset:
+    #def __init__(self,
+    #             images_dir,
+    #             masks_dir,
+    #             labels_dir,
+    #             fold=0,
+    #             fold_num=4,
+    #             seed=777,
+    #             ):
     def __init__(self,
-                 images_dir,
-                 masks_dir,
-                 labels_dir,
-                 fold=0,
-                 fold_num=4,
-                 seed=777,
-                 ):
+                  images_dir,
+                  masks_dir,
+                  labels_dir,
+                  channels,
+                  seed=777,
+                  ):
         super().__init__()
-        self.fold = fold
-        self.fold_num = fold_num
+        #self.fold = fold
+        #self.fold_num = fold_num
         self.seed = seed
         self.images_dir = images_dir
         self.masks_dir = masks_dir
         self.labels_dir = labels_dir
+        self.channels = channels
         np.random.seed(seed)
-        self.train_ids, self.val_ids = self.generate_ids()
+        self.train_ids, self.val_ids, self.train_paths, self.val_paths = self.generate_ids()
         print("Found {} train images".format(len(self.train_ids)))
         print("Found {} val images".format(len(self.val_ids)))
 
-    def get_generator(self, image_ids, crop_shape, preprocessing_function='torch', random_transformer=None, batch_size=16, shuffle=True):
+    def get_generator(self, image_ids, image_paths, channels, crop_shape, preprocessing_function='torch', random_transformer=None, batch_size=16, shuffle=True):
         return DSB2018BinaryDatasetIterator(
             self.images_dir,
             self.masks_dir,
             self.labels_dir,
             image_ids,
+            image_paths,
+            channels,
             crop_shape,
             preprocessing_function,
             random_transformer,
             batch_size,
             shuffle=shuffle,
-            image_name_template="{id}.png",
-            mask_template="{id}.png",
+            image_name_template="{id}", #.png",
+            mask_template="{id}", #.png",
             label_template="{id}.tif",
             padding=32,
             seed=self.seed
         )
 
     def train_generator(self, crop_shape=(256, 256), preprocessing_function='torch', random_transformer=None, batch_size=16):
-        return self.get_generator(self.train_ids, crop_shape, preprocessing_function, random_transformer, batch_size, True)
+        crop_shape=None
+        return self.get_generator(self.train_ids, self.train_paths, self.channels, crop_shape, preprocessing_function, random_transformer, batch_size, True)
 
     def val_generator(self, preprocessing_function='torch', batch_size=1):
-        return self.get_generator(self.val_ids, None, preprocessing_function, None, batch_size, False)
+        return self.get_generator(self.val_ids, self.val_paths, self.channels, None, preprocessing_function, None, batch_size, False)
 
     def generate_ids(self):
-        df = pd.read_csv(args.folds_csv)
-        polosa_id = '193ffaa5272d5c421ae02130a64d98ad120ec70e4ed97a72cdcd4801ce93b066'
-        galaxy_ids = ['538b7673d507014d83af238876e03617396b70fe27f525f8205a4a96900fbb8e',
-                      'a102535b0e88374bea4a1cfd9ee7cb3822ff54f4ab2a9845d428ec22f9ee2288',
-                      'cb4df20a83b2f38b394c67f1d9d4aef29f9794d5345da3576318374ec3a11490',
-                      'f29fd9c52e04403cd2c7d43b6fe2479292e53b2f61969d25256d2d2aca7c6a81']
-        all_folds_ids = galaxy_ids + [polosa_id]
-        train_groups = df[(df['fold'] != self.fold) | (df['img_id'] == polosa_id)| (df['source'] == 'wikimedia')| (df['img_id'].isin(all_folds_ids))]['cluster'].values
-        all_train_ids = df[(df['fold'] != self.fold) | (df['img_id'] == polosa_id)  | (df['source'] == 'wikimedia') | (df['img_id'].isin(all_folds_ids))]['img_id'].values
+        all_ids = next(os.walk(self.images_dir))[2]
+        all_paths = list(map(lambda x: self.images_dir + '/' + x, all_ids))
+        if len(all_ids) == 0:
+            all_ids, all_paths = self.index_input_data()
+        train_ids, val_ids, train_paths, val_paths = train_test_split(all_ids, all_paths, test_size=0.3, random_state=self.seed)
+        return train_ids, val_ids, train_paths, val_paths
 
-        train_ids = []
-        for i in range(len(all_train_ids)):
-            rep = 1
-            if train_groups[i] in ['b', 'd', 'e', 'm']:
-                rep = 2
-            elif train_groups[i] in ['c']:
-                rep = 2
-            elif train_groups[i] in ['n']:
-                rep = 3
-            if all_train_ids[i] == polosa_id:
-                rep = 4
-            train_ids.extend([all_train_ids[i]] * rep)
-        train_ids = np.asarray(train_ids)
+    def index_input_data(self, check_masks=True):
+        all_ids = []
+        all_paths = []
+        sub_dirs = [d for d in os.listdir(self.images_dir) if os.path.isdir(os.path.join(self.images_dir, d))]
+        for sub_dir in sub_dirs:
+            channels_capacity = {}
+            for i, channel in enumerate(os.listdir(os.path.join(self.images_dir, sub_dir))):
+                if i >= self.channels:
+                    break
+                channel_path = os.path.join(self.images_dir, sub_dir, channel)
+                if channel.endswith('nii.gz') or channel.endswith('.nii'):
+                    nib_fs = nib.load(channel_path)
+                else:
+                    nib_fs = nib.load(os.path.join(channel_path, os.listdir(channel_path)[0]))
+                f_data = nib_fs.get_fdata()
+                channels_capacity[channel] = f_data.shape[2]
+            if check_masks:
+                msk_channel = os.listdir(os.path.join(self.masks_dir, sub_dir))[0]
+                mask_path = os.path.join(self.masks_dir, sub_dir, msk_channel)
+                if mask_path.endswith('nii.gz') or mask_path.endswith('.nii'):
+                    msk_nib_fs = nib.load(mask_path)
+                else:
+                    msk_nib_fs = nib.load(os.path.join(mask_path, os.listdir(mask_path)[0]))
+                f_data = msk_nib_fs.get_fdata()
+                channels_capacity['mask_'+msk_channel] = f_data.shape[2]
 
-        val_ids = df[(df['fold'] == self.fold)]['img_id'].values
-        return train_ids, val_ids
-
+            min_capacity = min(channels_capacity.values())
+            all_ids += range(min_capacity)
+            all_paths += [os.path.join(self.images_dir, sub_dir)]*min_capacity
+        return all_ids, all_paths
 
 class DSB2018BinaryDatasetIterator(BaseMaskDatasetIterator):
-
-    def __init__(self, images_dir, masks_dir, labels_dir, image_ids, crop_shape, preprocessing_function, random_transformer=None, batch_size=8, shuffle=True,
+    def __init__(self, images_dir, masks_dir, labels_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer=None, batch_size=8, shuffle=True,
                  image_name_template=None, mask_template=None, label_template=None, padding=32, seed=None):
         if random_transformer:
             self.all_good4copy = {}
-            df = pd.read_csv(args.folds_csv)
-            all_ids = df['img_id'].values
+            all_ids = next(os.walk(images_dir))[2]
 
             for i in tqdm(range(len(all_ids))):
                 img_id = all_ids[i]
-                msk = cv2.imread(os.path.join(masks_dir, '{0}.png'.format(img_id)), cv2.IMREAD_UNCHANGED)
-                lbl = cv2.imread(os.path.join(labels_dir, '{0}.tif'.format(img_id)), cv2.IMREAD_UNCHANGED)
+                #msk = cv2.imread(os.path.join(masks_dir, img_id), cv2.IMREAD_UNCHANGED)
+                #lbl = cv2.imread(os.path.join(labels_dir, '{0}.tif'.format(img_id)), cv2.IMREAD_UNCHANGED)
+                #msk = nib.load(os.path.join(masks_dir, '{0}.nii.gz'.format(img_id)))
+                #lbl = nib.load(os.path.join(labels_dir, '{0}.nii.gz'.format(img_id)))
 
-                tmp = np.zeros_like(msk[..., 0], dtype='uint8')
-                tmp[1:-1, 1:-1] = msk[1:-1, 1:-1, 0]
-                good4copy = list(set(np.unique(lbl[lbl > 0])).symmetric_difference(np.unique(lbl[(lbl > 0) & (tmp == 0)])))
+                #tmp = np.zeros_like(msk[..., 0], dtype='uint8')
+                #tmp[1:-1, 1:-1] = msk[1:-1, 1:-1, 0]
+                #good4copy = list(set(np.unique(lbl[lbl > 0])).symmetric_difference(np.unique(lbl[(lbl > 0) & (tmp == 0)])))
+                good4copy = False
                 self.all_good4copy[img_id] = good4copy
 
-        super().__init__(images_dir, masks_dir, labels_dir, image_ids, crop_shape, preprocessing_function, random_transformer, batch_size, shuffle, image_name_template,
+        super().__init__(images_dir, masks_dir, labels_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer, batch_size, shuffle, image_name_template,
                          mask_template, label_template, padding, seed, grayscale_mask=False)
+
 
     def transform_mask(self, mask, image):
         mask[mask > 127] = 255
