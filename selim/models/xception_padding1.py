@@ -22,6 +22,8 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import numpy as np
+import tensorflow as tf
 import warnings
 
 from keras_applications.imagenet_utils import _obtain_input_shape
@@ -270,15 +272,26 @@ def Xception(include_top=True, weights='imagenet',
         if input_shape[-1] > 3:
             print(f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels')
             donor_model.load_weights(weights_path)
-            donor_weights = donor_model.get_weights()
-            final_donor_weights = model.get_weights()[:1] + donor_weights[1:]
-            final_donor_weights[0][:, :, :3, :] = donor_weights[0]
-            model.set_weights(final_donor_weights)
-            del donor_model, donor_weights
+            #donor_weights = donor_model.get_weights()
+            #final_donor_weights = model.get_weights()[:1] + donor_weights[1:]
+            #final_donor_weights[0] = np.concatenate((donor_weights[0], donor_weights[0][:, :, 0:input_shape[-1]-3, :]), axis=2)
+            #model.set_weights(final_donor_weights)
+
+            for i, (l, d_l) in enumerate(zip(model.layers, donor_model.layers)):
+                if i == 1:
+                    new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
+                    l.weights[0].assign(new_w)
+                    continue
+                for (w, d_w) in zip(l.weights, d_l.weights):
+                    w.assign(d_w)
+
+            del donor_model #, donor_weights
         else:
             model.load_weights(weights_path)
     elif weights is not None:
         model.load_weights(weights)
+    else:
+        print('No pretrained weights passed')
 
     if old_data_format:
         K.set_image_data_format(old_data_format)
