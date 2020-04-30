@@ -24,7 +24,7 @@ from tensorflow.keras.optimizers import RMSprop, Adam, SGD
 from losses import make_loss, hard_dice_coef, hard_dice_coef_ch1
 
 import tensorflow.keras.backend as K
-#import tensorflow as tf
+import tensorflow as tf
 
 
 class ModelCheckpointMGPU(ModelCheckpoint):
@@ -36,7 +36,11 @@ class ModelCheckpointMGPU(ModelCheckpoint):
         self.model = self.original_model
         super().on_epoch_end(epoch, logs)
 
-gpus = [x.name for x in device_lib.list_local_devices() if x.device_type == 'GPU']
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
+
 
 def freeze_model(model, freeze_before_layer):
     if freeze_before_layer == "ALL":
