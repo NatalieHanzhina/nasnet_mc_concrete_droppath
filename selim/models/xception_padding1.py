@@ -22,6 +22,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import h5py
 import numpy as np
 import tensorflow as tf
 import warnings
@@ -256,7 +257,7 @@ def Xception(include_top=True, weights='imagenet',
                                       classes=classes)
 
     # load weights
-    if weights == 'imagenet':
+    if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:
             print('Loading pretrained ImageNet weights, include top')
             weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels.h5',
@@ -285,6 +286,22 @@ def Xception(include_top=True, weights='imagenet',
                 for (w, d_w) in zip(l.weights, d_l.weights):
                     w.assign(d_w)
 
+            if weights != 'imagenet':
+                print(f'Loading trained "{weights}" weights')
+                f = h5py.File(weights, 'r')
+                for i, l in enumerate(model.layers):
+                    l_ws = l.weights
+                    #print(len(f.keys()))
+                    #for k in f.keys():
+                    #    print(k)
+                    #input()
+                    d_ws = [f[l.name][l_w.name] for l_w in l_ws]
+                    if i == 1:
+                        new_w = np.concatenate((d_ws[0].value, l.weights[0].numpy()[..., 3:, :]), axis=-2)
+                        l.weights[0].assign(new_w)
+                        continue
+                    for (w, d_w) in zip(l.weights, d_ws):
+                        w.assign(d_w.value)
             del donor_model #, donor_weights
         else:
             model.load_weights(weights_path)
