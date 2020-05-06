@@ -75,7 +75,7 @@ class DSB2018BinaryDataset:
         all_paths = list(map(lambda x: self.images_dir + '/' + x, all_ids))
         if len(all_ids) == 0:
             all_ids, all_paths = self.index_input_data()
-        train_ids, val_ids, train_paths, val_paths = train_test_split(all_ids, all_paths, test_size=0.3, random_state=self.seed)
+        train_ids, val_ids, train_paths, val_paths = train_test_split(all_ids, all_paths, test_size=0.2, random_state=self.seed)
         return train_ids, val_ids, train_paths, val_paths
 
     def index_input_data(self, check_masks=True):

@@ -47,6 +47,7 @@ class BaseMaskDatasetIterator(Iterator):
         self.preprocessing_function = preprocessing_function
         self.padding = padding
         self.grayscale_mask = grayscale_mask
+        self.max_msk_value = self.find_max_mask_value()
         if seed is None:
             seed = np.uint32(time.time() * 1000)
 
@@ -71,6 +72,23 @@ class BaseMaskDatasetIterator(Iterator):
         mask = np.stack((mask, boarder), axis=-1)
         return mask
 
+    def find_max_mask_value(self):
+        mask_max = -1e8
+        img_paths = list(set(self.image_paths))
+        for i in range(len(img_paths)):
+            mask_path = img_paths[i].replace(self.images_dir, self.masks_dir)
+            if mask_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
+                return None
+            elif mask_path.endswith('.nii.gz') or mask_path.endswith('.nii') or os.path.isdir(mask_path):
+                nii_gz_mask_path = os.path.join(mask_path, os.listdir(mask_path)[0])
+                if nii_gz_mask_path.endswith('nii.gz') or nii_gz_mask_path.endswith('.nii'):
+                    nib_fs = nib.load(nii_gz_mask_path)
+                else:
+                    nib_fs = nib.load(os.path.join(nii_gz_mask_path, os.listdir(nii_gz_mask_path)[0]))
+                masks = nib_fs.get_fdata()
+                mask_max = np.max([mask_max, masks.max()])
+        return mask_max
+
     def create_opencv_mask(self, labels):
         if self.grayscale_mask:
             labels = cv2.cvtColor(labels, cv2.COLOR_BGR2GRAY)
@@ -92,6 +110,10 @@ class BaseMaskDatasetIterator(Iterator):
         return mask, image, label
 
     def transform_batch_y(self, batch_y):
+        batch_y[:, -1, -1, -1] = self.max_msk_value
+        norm_batch_y = cv2.normalize(batch_y, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+        norm_batch_y[:, -1, -1, -1] = norm_batch_y[:, -2, -2, -2]
+        return norm_batch_y
         return batch_y
 
     def _get_batches_of_transformed_samples(self, index_array):
@@ -153,6 +175,10 @@ class BaseMaskDatasetIterator(Iterator):
         if self.preprocessing_function:
             batch_x = imagenet_utils.preprocess_input(batch_x, mode=self.preprocessing_function)
         return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
+        #t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
+        #print(f'transformed min: {np.min(t_x)}, max: {np.max(t_x)}, init min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+        #input()
+        #return t_x, t_y
 
     def read_nii_gz_img_archive(self, img_path, id_in_archive):
         img = []
@@ -179,8 +205,8 @@ class BaseMaskDatasetIterator(Iterator):
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
-        return batch_x
-
+        norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+        return norm_batch_x
 
     def next(self):
 
