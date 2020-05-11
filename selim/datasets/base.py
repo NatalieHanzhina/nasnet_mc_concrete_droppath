@@ -110,11 +110,15 @@ class BaseMaskDatasetIterator(Iterator):
         return mask, image, label
 
     def transform_batch_y(self, batch_y):
+        if self.max_msk_value <= 4:
+            if batch_y.max() > 1:
+                input()
+            return np.where(batch_y < 1, batch_y, 1)
         batch_y[:, -1, -1, -1] = self.max_msk_value
         norm_batch_y = cv2.normalize(batch_y, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
         norm_batch_y[:, -1, -1, -1] = norm_batch_y[:, -2, -2, -2]
+        batch_y[:, -1, -1, -1] = batch_y[:, -2, -2, -2]
         return norm_batch_y
-        return batch_y
 
     def _get_batches_of_transformed_samples(self, index_array):
         batch_x = []
@@ -139,6 +143,7 @@ class BaseMaskDatasetIterator(Iterator):
                 mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             elif mask_path.endswith('.nii.gz') or mask_path.endswith('.nii') or os.path.isdir(mask_path):
                 mask = self.read_nii_gz_msk_archive(mask_path, id_in_archive)
+                mask = mask*255
             else:
                 raise ValueError("Unsupported type of mask input data")
             #label = cv2.imread(os.path.join(self.labels_dir, self.label_template.format(id=id)), cv2.IMREAD_UNCHANGED)
@@ -172,13 +177,17 @@ class BaseMaskDatasetIterator(Iterator):
                 batch_y.append(mask)
         batch_x = np.array(batch_x, dtype="float32")
         batch_y = np.array(batch_y, dtype="float32")
+        #if self.preprocessing_function:
+        #    batch_x = imagenet_utils.preprocess_input(batch_x, mode=self.preprocessing_function)
+        #return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
+        t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
+        #print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+        #print(f'transformed msk min: {np.min(t_y)}, max: {np.max(t_y)}, init msk min: {np.min(batch_y)}, max: {np.max(batch_y)}')
         if self.preprocessing_function:
-            batch_x = imagenet_utils.preprocess_input(batch_x, mode=self.preprocessing_function)
-        return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
-        #t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
-        #print(f'transformed min: {np.min(t_x)}, max: {np.max(t_x)}, init min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+            preprocessed_t_x = imagenet_utils.preprocess_input(t_x, mode=self.preprocessing_function)
+        #print(f'preprocessed transformed img min: {np.min(preprocessed_t_x)}, max: {np.max(preprocessed_t_x)}')
         #input()
-        #return t_x, t_y
+        return preprocessed_t_x, t_y
 
     def read_nii_gz_img_archive(self, img_path, id_in_archive):
         img = []
@@ -206,7 +215,7 @@ class BaseMaskDatasetIterator(Iterator):
 
     def transform_batch_x(self, batch_x):
         norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-        return norm_batch_x
+        return norm_batch_x * 255
 
     def next(self):
 

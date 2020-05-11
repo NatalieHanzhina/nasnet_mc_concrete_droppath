@@ -13,7 +13,7 @@ python train.py \
 --optimizer adam  \
 --learning_rate 0.0001  \
 --decay 0.0001  \
---batch_size 20 \
+--batch_size 16 \
 --steps_per_epoch 500 \
 --epochs 2 \
 --preprocessing_function caffe \
@@ -32,7 +32,7 @@ python train.py \
 --optimizer adam \
 --learning_rate 0.0001 \
 --decay 0.0001 \
---batch_size 20 \
+--batch_size 16 \
 --steps_per_epoch 500 \
 --epochs 98 \
 --preprocessing_function caffe \
