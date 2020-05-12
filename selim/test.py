@@ -51,8 +51,10 @@ if __name__ == '__main__':
         model.load_weights(w)
         models.append(model)
     #os.makedirs(test_pred, exist_ok=True)
-    dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.labels_dir, args.channels, seed=args.seed)
-    data_generator = dataset.val_generator(batch_size=args.batch_size)
+
+    #dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.labels_dir, args.channels, seed=args.seed)
+    dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
+    data_generator = dataset.test_generator(batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 

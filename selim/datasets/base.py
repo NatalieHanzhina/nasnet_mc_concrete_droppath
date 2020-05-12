@@ -17,7 +17,7 @@ class BaseMaskDatasetIterator(Iterator):
     def __init__(self,
                  images_dir,
                  masks_dir,
-                 labels_dir,
+                 #labels_dir,
                  image_ids,
                  images_paths,
                  channels,
@@ -35,7 +35,7 @@ class BaseMaskDatasetIterator(Iterator):
                  ):
         self.images_dir = images_dir
         self.masks_dir = masks_dir
-        self.labels_dir = labels_dir
+        #self.labels_dir = labels_dir
         self.image_ids = image_ids
         self.image_paths = images_paths
         self.channels = channels

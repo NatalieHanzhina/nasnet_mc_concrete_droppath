@@ -1,8 +1,9 @@
 import gc
+
 import cv2
+
 cv2.setNumThreads(0)
 cv2.ocl.setUseOpenCL(False)
-import os
 from params import args
 
 #os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -15,8 +16,6 @@ from tensorflow.keras.utils import multi_gpu_model
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from models.model_factory import make_model
-
-from tensorflow.python.client import device_lib
 
 from tensorflow.keras.callbacks import LearningRateScheduler, ModelCheckpoint, TensorBoard
 from tensorflow.keras.optimizers import RMSprop, Adam, SGD
@@ -85,7 +84,7 @@ def main():
         elif args.optimizer == 'sgd':
             optimizer = SGD(lr=args.learning_rate, momentum=0.9, nesterov=True, decay=float(args.decay))
     #dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.labels_dir, fold, args.n_folds, seed=args.seed)
-    dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.labels_dir, args.channels, seed=args.seed)
+    dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.channels, seed=args.seed)
     random_transform = aug_mega_hardcore()
     train_generator = dataset.train_generator((args.crop_size, args.crop_size), args.preprocessing_function, random_transform, batch_size=args.batch_size)
     val_generator = dataset.val_generator(args.preprocessing_function, batch_size=args.batch_size)
