@@ -1,17 +1,15 @@
-import random
 import os
-import cv2
-import numpy as np
+import random
+
 import nibabel as nib
-import pandas as pd
+import numpy as np
+from datasets.base import BaseMaskDatasetIterator
+from params import args
 from skimage import measure
 from skimage.filters import median
 from skimage.morphology import dilation, watershed, square, erosion
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-
-from datasets.base import BaseMaskDatasetIterator
-from params import args
 
 
 class DSB2018BinaryDataset:
@@ -69,6 +67,10 @@ class DSB2018BinaryDataset:
 
     def val_generator(self, preprocessing_function='torch', batch_size=1):
         return self.get_generator(self.val_ids, self.val_paths, self.channels, None, preprocessing_function, None, batch_size, False)
+
+    def test_generator(self, preprocessing_function='torch', batch_size=1):
+        return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None, preprocessing_function, None,
+                                  batch_size, False)
 
     def generate_ids(self):
         all_ids = next(os.walk(self.images_dir))[2]

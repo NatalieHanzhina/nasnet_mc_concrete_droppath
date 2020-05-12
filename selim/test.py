@@ -1,20 +1,13 @@
 import os
 
-from params import args
-import nibabel as nib
-
+import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
-
-#os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-
-
+from models.model_factory import make_model
+from params import args
 from tensorflow.keras.applications.imagenet_utils import preprocess_input
 
-from models.model_factory import make_model
-
-from os import path, mkdir, listdir
-import numpy as np
+# os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
 np.random.seed(1)
 import random
@@ -25,7 +18,6 @@ import tensorflow as tf
 tf.random.set_seed(1)
 import timeit
 import cv2
-from tqdm import tqdm
 from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.python.client import device_lib
@@ -44,7 +36,8 @@ gpus = [x.name for x in device_lib.list_local_devices() if x.device_type == 'GPU
 
 
 def preprocess_inputs(x):
-    return preprocess_input(x, mode=args.preprocessing_function)
+    norm_x = cv2.normalize(x, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    return preprocess_input(norm_x, mode=args.preprocessing_function)
 
 
 if __name__ == '__main__':
