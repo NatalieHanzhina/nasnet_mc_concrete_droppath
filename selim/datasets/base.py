@@ -214,8 +214,8 @@ class BaseMaskDatasetIterator(Iterator):
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
-        norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-        return norm_batch_x * 255
+        norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+        return norm_batch_x
 
     def next(self):
 
