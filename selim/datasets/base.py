@@ -149,7 +149,7 @@ class BaseMaskDatasetIterator(Iterator):
             if args.use_full_masks:
                 pass
                 #mask[...,0] = (label > 0) * 255
-            if self.crop_shape is not None:
+            if self.crop_shape is not None and self.crop_shape != (None, None):
                 label = None
                 crop_mask, crop_image, crop_label = self.augment_and_crop_mask_image(mask, image, label, id, self.crop_shape)
                 data = self.random_transformer(image=np.array(crop_image, "uint8"), mask=np.array(crop_mask, "uint8"))
@@ -160,10 +160,19 @@ class BaseMaskDatasetIterator(Iterator):
                 batch_x.append(crop_image)
                 batch_y.append(crop_mask)
             elif self.resize_shape is not None:
-                resized_image = cv2.resize(image, self.resize_shape)
-                resized_mask = cv2.resize(mask, self.resize_shape)
-                assert (image.shape[1] % 32) == 0
-                assert (image.shape[0] % 32) == 0
+                resized_image = cv2.resize(image, tuple(
+                    min(image.shape[j], self.resize_shape[j]) for j in range(len(self.resize_shape))))
+                resized_mask = cv2.resize(mask, tuple(
+                    min(mask.shape[j], self.resize_shape[j]) for j in range(len(self.resize_shape))))
+                x0, x1, y0, y1 = 0, 0, 0, 0
+                if (resized_image.shape[1] % 32) != 0:
+                    x0 = int((32 - resized_image.shape[1] % 32) / 2)
+                    x1 = (32 - resized_image.shape[1] % 32) - x0
+                if (resized_image.shape[0] % 32) != 0:
+                    y0 = int((32 - resized_image.shape[0] % 32) / 2)
+                    y1 = (32 - resized_image.shape[0] % 32) - y0
+                resized_image = np.pad(resized_image, ((y0, y1), (x0, x1), (0, 0)), 'reflect')
+                resized_mask = np.pad(resized_mask, ((y0, y1), (x0, x1), (0, 0)), 'reflect')
                 batch_x.append(resized_image)
                 resized_mask = self.transform_mask(resized_mask, resized_image)
                 batch_y.append(resized_mask)
@@ -207,6 +216,12 @@ class BaseMaskDatasetIterator(Iterator):
             else:
                 nib_fs = nib.load(os.path.join(channel_path, os.listdir(channel_path)[0]))
             img.append(nib_fs.get_fdata()[..., id_in_archive])
+        if len(np.asarray(img).shape) < 3:
+            print([k.shape for k in img])
+            print(channel_path)
+            print(os.listdir(img_path))
+            print(np.asarray(img).shape)
+            input()
         image = np.asarray(img)
         image = image.transpose((1, 2, 0))
         return image

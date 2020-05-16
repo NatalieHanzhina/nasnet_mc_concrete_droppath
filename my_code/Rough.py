@@ -16,25 +16,17 @@ EXCLUDED_DIRS = 0
 
 
 def main():
-    dirs = ['D:\Универы\ИТМО\Thesis\MRI scans\data\BurtsevLab_data_cleaned',
-            'D:\Универы\ИТМО\Thesis\MRI scans\data\BurtsevLab_data_cleaned_nii_init\images',
-            'D:\Универы\ИТМО\Thesis\MRI scans\data\BurtsevLab_data_cleaned_nii_init\masks']
+    dirs = get_args()
     count_dirs_sbdirs(dirs)
-    return
-    data_dir = get_args()
-    #convert_masks_to_porper_ext(data_dir)
-    files_to_parse_gen = get_files_to_parse_generator(data_dir)
-    #check_sm_shit(files_to_parse_gen, data_dir, save_path)
-    sizes = get_nii_sizes(files_to_parse_gen, data_dir)
-    for k in sizes.keys():
-        print(f'{k} {sizes[k]}')
 
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('path_to_data_dir', help='Path to data dir to parse')
+    parser.add_argument('imgs_dir', help='Path to data dir to parse')
+    parser.add_argument('msks_dir', help='Path to data dir to parse')
     args = parser.parse_args()
-    return args.path_to_data_dir
+    return [args.path_to_data_dir, args.imgs_dir, args.msks_dir]
 
 
 def count_dirs_sbdirs(dirs):
@@ -45,7 +37,7 @@ def count_dirs_sbdirs(dirs):
 
         img_num = len(os.listdir(os.path.join(dirs[1], patient)))
         msk_num = len(os.listdir(os.path.join(dirs[2], patient)))
-        if not(init_num == img_num and msk_num == 1):
+        if not(init_num == img_num+1 and msk_num == 1):
             print(patient)
             print(f'init_num: {init_num}; img_num: {img_num}, msk_num: {msk_num}')
 

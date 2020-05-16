@@ -33,8 +33,7 @@ OUT_CHANNELS = args.out_channels
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpus:
-#    tf.config.experimental.set_memory_growth(gpu, True)
-    pass
+    tf.config.experimental.set_memory_growth(gpu, True)
 
 
 if __name__ == '__main__':

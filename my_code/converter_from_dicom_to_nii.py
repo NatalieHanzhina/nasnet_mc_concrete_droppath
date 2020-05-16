@@ -11,7 +11,8 @@ import pydicom
 import pydicom.uid
 from tqdm import tqdm
 
-IMAGES_MODES = ['ML_DWI', 'ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
+#IMAGES_MODES = ['ML_DWI', 'ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
+IMAGES_MODES = ['ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
 DIR_FILTER_PREFIX = 'Ax'
 DIR_FILTER_NAME = 'AX'
 MSK_SHAPE = (512, 512)
@@ -122,9 +123,11 @@ def check_sm_shit(files_gen, source_dir, save_dir_path, msk_ext='.png'):
 
 
 def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext='.png'):
+    global EXCLUDED_DIRS
     for patient_dir, channels in files_gen:
         masks = {}
         channels_imgs = {}
+        patient_img_shape = None
         indices_to_exclude = set()
 
         channel_fail = False
@@ -142,7 +145,6 @@ def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext=
 
             if len(filtered_channel_subdirs_names) != 1:
                 channel_fail = True
-                global EXCLUDED_DIRS
                 EXCLUDED_DIRS += 1
                 continue
 
@@ -151,6 +153,16 @@ def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext=
             ch_sbdir_path = os.path.join(channel_path, ch_sbdir)
 
             files_names = os.listdir(ch_sbdir_path)
+            first_file_name = [f_n for f_n in files_names if f_n.endswith('.dcm') or f_n.endswith(msk_ext)][0]
+            if patient_img_shape is None:
+                patient_img_shape = pydicom.dcmread(os.path.join(ch_sbdir_path, first_file_name)).pixel_array.shape
+            else:
+                current_img_shape = pydicom.dcmread(os.path.join(ch_sbdir_path, first_file_name)).pixel_array.shape
+                if current_img_shape != patient_img_shape:
+                    channel_fail = True
+                    EXCLUDED_DIRS += 1
+                    continue
+
 
             #if len(files_names) > 0 and check_files_format(files_names, ['.dcm', msk_ext]):
             if len(files_names) > 0:
@@ -198,7 +210,8 @@ def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext=
             if len(channel_indices_to_exclude) > 0:
                 img_files = np.delete(img_files, tuple(channel_indices_to_exclude), axis=0)
             min_img_number = min(min_img_number, np.asarray(img_files).shape[0])
-            nib_imgs = nib.Nifti1Image(np.asarray(img_files), np.eye(4))
+            img_files_t = np.asarray(img_files).transpose((1,2,0))
+            nib_imgs = nib.Nifti1Image(img_files_t, np.eye(4))
             nib.save(nib_imgs, save_img_channel_path + '.nii')
 
         if source_dir[-1] == '/':
@@ -222,7 +235,8 @@ def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext=
         msk_indices_to_exclude = [i for i in indices_to_exclude if i <= len(masks_to_take)]
         if len(msk_indices_to_exclude) > 0:
             masks_to_take = np.delete(masks_to_take, tuple(msk_indices_to_exclude), axis=0)
-        nib_imgs = nib.Nifti1Image(np.asarray(masks_to_take), np.eye(4))
+        masks_to_take_t = np.asarray(masks_to_take).transpose((1,2,0))
+        nib_imgs = nib.Nifti1Image(np.asarray(masks_to_take_t), np.eye(4))
         nib.save(nib_imgs, save_msk_path + '.nii')
 
 
