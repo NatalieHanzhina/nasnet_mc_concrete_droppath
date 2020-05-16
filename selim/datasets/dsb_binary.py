@@ -29,27 +29,24 @@ class DSB2018BinaryDataset:
                   seed=777,
                   ):
         super().__init__()
-        #self.fold = fold
-        #self.fold_num = fold_num
         self.seed = seed
         self.images_dir = images_dir
         self.masks_dir = masks_dir
-        #self.labels_dir = labels_dir
         self.channels = channels
         np.random.seed(seed)
         self.train_ids, self.val_ids, self.train_paths, self.val_paths = self.generate_ids()
         print("Found {} train images".format(len(self.train_ids)))
         print("Found {} val images".format(len(self.val_ids)))
 
-    def get_generator(self, image_ids, image_paths, channels, crop_shape, preprocessing_function='torch', random_transformer=None, batch_size=16, shuffle=True):
+    def get_generator(self, image_ids, image_paths, channels, crop_shape, resize_shape, preprocessing_function='torch', random_transformer=None, batch_size=16, shuffle=True):
         return DSB2018BinaryDatasetIterator(
             self.images_dir,
             self.masks_dir,
-            #self.labels_dir,
             image_ids,
             image_paths,
             channels,
             crop_shape,
+            resize_shape,
             preprocessing_function,
             random_transformer,
             batch_size,
@@ -61,16 +58,15 @@ class DSB2018BinaryDataset:
             seed=self.seed
         )
 
-    def train_generator(self, crop_shape=(256, 256), preprocessing_function='torch', random_transformer=None, batch_size=16):
-        crop_shape=None
-        return self.get_generator(self.train_ids, self.train_paths, self.channels, crop_shape, preprocessing_function, random_transformer, batch_size, True)
+    def train_generator(self, crop_shape=(256, 256), resize_shape=(256, 256), preprocessing_function='torch', random_transformer=None, batch_size=16):
+        return self.get_generator(self.train_ids, self.train_paths, self.channels, crop_shape, resize_shape, preprocessing_function, random_transformer, batch_size, True)
 
-    def val_generator(self, preprocessing_function='torch', batch_size=1):
-        return self.get_generator(self.val_ids, self.val_paths, self.channels, None, preprocessing_function, None, batch_size, False)
+    def val_generator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
+        return self.get_generator(self.val_ids, self.val_paths, self.channels, None, resize_shape, preprocessing_function, None, batch_size, False)
 
-    def test_generator(self, preprocessing_function='torch', batch_size=1):
-        return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None, preprocessing_function, None,
-                                  batch_size, False)
+    def test_generator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
+        return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None,
+                                  resize_shape, preprocessing_function, None, batch_size, False)
 
     def generate_ids(self):
         all_ids = next(os.walk(self.images_dir))[2]
@@ -113,7 +109,7 @@ class DSB2018BinaryDataset:
 
 class DSB2018BinaryDatasetIterator(BaseMaskDatasetIterator):
     #def __init__(self, images_dir, masks_dir, labels_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer=None, batch_size=8, shuffle=True,
-    def __init__(self, images_dir, masks_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer=None, batch_size=8, shuffle=True,
+    def __init__(self, images_dir, masks_dir, image_ids, images_paths, channels, crop_shape, resize_shape, preprocessing_function, random_transformer=None, batch_size=8, shuffle=True,
                  image_name_template=None, mask_template=None, label_template=None, padding=32, seed=None):
         if random_transformer:
             self.all_good4copy = {}
@@ -132,10 +128,8 @@ class DSB2018BinaryDatasetIterator(BaseMaskDatasetIterator):
                 good4copy = False
                 self.all_good4copy[img_id] = good4copy
 
-        #super().__init__(images_dir, masks_dir, labels_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer, batch_size, shuffle, image_name_template,
-        super().__init__(images_dir, masks_dir, image_ids, images_paths, channels, crop_shape, preprocessing_function, random_transformer, batch_size, shuffle, image_name_template,
+        super().__init__(images_dir, masks_dir, image_ids, images_paths, channels, crop_shape, resize_shape, preprocessing_function, random_transformer, batch_size, shuffle, image_name_template,
                          mask_template, label_template, padding, seed, grayscale_mask=False)
-
 
     def transform_mask(self, mask, image):
         mask[mask > 127] = 255

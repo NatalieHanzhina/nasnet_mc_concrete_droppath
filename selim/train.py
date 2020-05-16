@@ -53,13 +53,14 @@ def freeze_model(model, freeze_before_layer):
         for l in model.layers[:freeze_before_layer_index + 1]:
             l.trainable = False
 
+
 def main():
     if args.crop_size:
         print('Using crops of shape ({}, {})'.format(args.crop_size, args.crop_size))
+    elif args.resize_size:
+        print('Using resizes of shape ({}, {})'.format(args.resize_size, args.resize_size))
     else:
         print('Using full size images')
-    #folds = [int(f) for f in args.fold.split(",")]
-    #for fold in folds:
     if args.multi_gpu:
         with tf.device("/cpu:0"):
             model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
@@ -86,8 +87,8 @@ def main():
     #dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.labels_dir, fold, args.n_folds, seed=args.seed)
     dataset = DSB2018BinaryDataset(args.images_dir, args.masks_dir, args.channels, seed=args.seed)
     random_transform = aug_mega_hardcore()
-    train_generator = dataset.train_generator((args.crop_size, args.crop_size), args.preprocessing_function, random_transform, batch_size=args.batch_size)
-    val_generator = dataset.val_generator(args.preprocessing_function, batch_size=args.batch_size)
+    train_generator = dataset.train_generator((args.crop_size, args.crop_size), (args.resize_size, args.resize_size), args.preprocessing_function, random_transform, batch_size=args.batch_size)
+    val_generator = dataset.val_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     #best_model_file = '{}/best_{}{}_fold{}.h5'.format(args.models_dir, args.alias, args.network,fold)
     best_model_file = '{}/best_{}{}.h5'.format(args.models_dir, args.alias, args.network)
 
