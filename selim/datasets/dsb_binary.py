@@ -24,7 +24,7 @@ class DSB2018BinaryDataset:
     def __init__(self,
                   images_dir,
                   masks_dir,
-                  labels_dir,
+                  #labels_dir,
                   channels,
                   seed=777,
                   ):

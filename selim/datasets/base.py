@@ -110,9 +110,9 @@ class BaseMaskDatasetIterator(Iterator):
         return mask, image, label
 
     def transform_batch_y(self, batch_y):
+        if self.max_msk_value is None:
+            return batch_y
         if self.max_msk_value <= 4:
-            if batch_y.max() > 1:
-                input()
             return np.where(batch_y < 1, batch_y, 1)
         batch_y[:, -1, -1, -1] = self.max_msk_value
         norm_batch_y = cv2.normalize(batch_y, dst=None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)

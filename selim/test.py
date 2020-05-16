@@ -22,7 +22,6 @@ from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.python.client import device_lib
 
-test_folder = args.test_folder
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
 
 all_ids = []
@@ -32,12 +31,10 @@ all_masks = []
 OUT_CHANNELS = args.out_channels
 
 
-gpus = [x.name for x in device_lib.list_local_devices() if x.device_type == 'GPU']
-
-
-def preprocess_inputs(x):
-    norm_x = cv2.normalize(x, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-    return preprocess_input(norm_x, mode=args.preprocessing_function)
+gpus = tf.config.experimental.list_physical_devices('GPU')
+for gpu in gpus:
+#    tf.config.experimental.set_memory_growth(gpu, True)
+    pass
 
 
 if __name__ == '__main__':
@@ -54,11 +51,12 @@ if __name__ == '__main__':
 
     #dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.labels_dir, args.channels, seed=args.seed)
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
-    data_generator = dataset.test_generator(batch_size=args.batch_size)
+    data_generator = dataset.test_generator(args.preprocessing_function, batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 
     for i, model in enumerate(models):
+        print(f'Evaluating {weights[i]} model')
         if args.multi_gpu:
             model = multi_gpu_model(model. len(gpus))
 
@@ -67,7 +65,7 @@ if __name__ == '__main__':
                   metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])
 
         test_loss = model.evaluate_generator(data_generator, verbose=1)
-        print(weights[i])
+        print(f'{weights[i]} evaluation results:')
         print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
         a = 1
 
