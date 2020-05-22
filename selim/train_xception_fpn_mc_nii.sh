@@ -3,8 +3,10 @@
 ##################### Xception FPN with Sigmoid activation ##############################
 
 python train.py \
+--channels 4 \
 --num_workers 8  \
 --network xception_fpn_mc \
+--alias nii_ \
 --freeze_till_layer input_1  \
 --loss double_head_loss \
 --optimizer adam  \
@@ -14,4 +16,6 @@ python train.py \
 --steps_per_epoch 500 \
 --epochs 300 \
 --preprocessing_function caffe \
---log_dir xception_fpn_mc
+--images_dir /media/disk1/mkashirin/data_nii/images \
+--masks_dir /media/disk1/mkashirin/data_nii/masks \
+--log_dir xception_fpn_mc_nii

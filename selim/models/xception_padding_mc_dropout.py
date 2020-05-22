@@ -338,13 +338,18 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
             #final_donor_weights[0] = np.concatenate((donor_weights[0], donor_weights[0][:, :, 0:input_shape[-1]-3, :]), axis=2)
             #model.set_weights(final_donor_weights)
 
-            for i, (l, d_l) in enumerate(zip(model.layers, donor_model.layers)):
-                if i == 1:
+            j = 1 # ignore input layers
+            for i, l in enumerate(model.layers[1:]):
+                d_l = donor_model.layers[j]
+                if l.name != d_l.name:
+                    continue
+                j += 1
+                if i == 0:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     l.weights[0].assign(new_w)
-                    continue
-                for (w, d_w) in zip(l.weights, d_l.weights):
-                    w.assign(d_w)
+                else:
+                    for (w, d_w) in zip (l.weights, d_l.weights):
+                        w.assign(d_w)
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')

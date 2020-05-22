@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     #dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.labels_dir, args.channels, seed=args.seed)
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
-    data_generator = dataset.test_generator(args.preprocessing_function, batch_size=args.batch_size)
+    data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 

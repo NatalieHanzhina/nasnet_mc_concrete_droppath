@@ -3,7 +3,6 @@
 ##################### Xception FPN with Sigmoid activation ##############################
 
 python train.py \
---gpu "0,1,2,3"  \
 --num_workers 8  \
 --network resnet152_2 \
 --freeze_till_layer input_1  \
@@ -18,7 +17,6 @@ python train.py \
 --preprocessing_function caffe
 
 python train.py \
---gpu "0,1,2,3" \
 --num_workers 8 \
 --network resnet152_2 \
 --freeze_till_layer input_1 \

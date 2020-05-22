@@ -159,7 +159,7 @@ class BaseMaskDatasetIterator(Iterator):
                 crop_mask = self.transform_mask(crop_mask, crop_image)
                 batch_x.append(crop_image)
                 batch_y.append(crop_mask)
-            elif self.resize_shape is not None:
+            elif self.resize_shape is not None and self.resize_shape != (None, None):
                 resized_image = cv2.resize(image, tuple(
                     min(image.shape[j], self.resize_shape[j]) for j in range(len(self.resize_shape))))
                 resized_mask = cv2.resize(mask, tuple(
