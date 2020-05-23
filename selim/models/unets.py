@@ -1,13 +1,12 @@
 
-from tensorflow.keras import Model, Input
-from tensorflow.keras.applications import DenseNet169
-from tensorflow.keras.layers import Dropout, UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
-from tensorflow.keras.utils import get_file
-
 from models.xception_padding1 import Xception
 from models.xception_padding_mc_dropout import Xception_mc_dropout
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
+from tensorflow.keras import Model, Input
+from tensorflow.keras.applications import DenseNet169
+from tensorflow.keras.layers import Dropout, UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
+from tensorflow.keras.utils import get_file
 
 resnet_filename = 'ResNet-{}-model.keras.h5'
 resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
@@ -246,6 +245,7 @@ def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoi
     model = Model(xception.input, x)
     return model
 
+
 def xception_fpn_mc(input_shape, channels=1, p=0.3, weights='imagenet', activation="sigmoid"):
     xception_mc = Xception_mc_dropout(input_shape=input_shape, p=p, weights=weights, include_top=False)
     conv1 = xception_mc.get_layer("block1_conv2_act").output
@@ -276,6 +276,45 @@ def xception_fpn_mc(input_shape, channels=1, p=0.3, weights='imagenet', activati
     x = Dropout(p)(x, training=True)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
     x = Dropout(p)(x, training=True)
+    if activation == 'softmax':
+        name = 'mask_softmax'
+        x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
+    else:
+        x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
+    model = Model(xception_mc.input, x)
+    return model
+
+
+def xception_fpn_mc_dp(input_shape, channels=1, p=0.3, weights='imagenet', activation="sigmoid"):
+    xception_mc = Xception_mc_dropout(input_shape=input_shape, p=p, weights=weights, include_top=False)
+    conv1 = xception_mc.get_layer("block1_conv2_act").output
+    conv2 = xception_mc.get_layer("block3_sepconv2_bn").output
+    conv3 = xception_mc.get_layer("block4_sepconv2_bn").output
+    conv3 = Activation("relu")(conv3)
+    conv4 = xception_mc.get_layer("block13_sepconv2_bn").output
+    conv4 = Activation("relu")(conv4)
+    conv5 = xception_mc.get_layer("block14_sepconv2_act").output
+
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = Dropout(p)(x, training=True)
+    x = UpSampling2D()(x)
+    x = Dropout(p)(x, training=True)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     if activation == 'softmax':
         name = 'mask_softmax'
         x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
