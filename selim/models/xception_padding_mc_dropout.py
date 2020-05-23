@@ -223,7 +223,6 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
     x = BatchNormalization(name='block4_sepconv2_bn')(x)
     x = Dropout(p)(x, training=True)
 
-    x = Dropout(p)(x, training=True)
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block4_pool')(x)
     x = Dropout(p)(x, training=True)
     x = layers.add([x, residual])
@@ -340,8 +339,11 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
 
             j = 1 # ignore input layers
             for i, l in enumerate(model.layers[1:]):
+                if j >= len(donor_model.layers):
+                    break
                 d_l = donor_model.layers[j]
-                if l.name != d_l.name:
+                #if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name:
                     continue
                 j += 1
                 if i == 0:
@@ -350,6 +352,7 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                 else:
                     for (w, d_w) in zip (l.weights, d_l.weights):
                         w.assign(d_w)
+            assert j == len(donor_model.layers)
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')
