@@ -256,8 +256,8 @@ def Xception(include_top=True, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
-    # load weights
     print('______________XCEPTION_______________')
+    # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:
             print('Loading pretrained ImageNet weights, include top')

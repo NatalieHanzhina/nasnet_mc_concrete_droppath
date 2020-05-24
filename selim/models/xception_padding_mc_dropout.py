@@ -338,8 +338,8 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
             #final_donor_weights[0] = np.concatenate((donor_weights[0], donor_weights[0][:, :, 0:input_shape[-1]-3, :]), axis=2)
             #model.set_weights(final_donor_weights)
 
-            j = 1 # ignore input layers
-            for i, l in enumerate(model.layers[1:]):
+            j = 0
+            for i, l in enumerate(model.layers):
                 if j >= len(donor_model.layers):
                     break
                 d_l = donor_model.layers[j]
@@ -351,7 +351,7 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                 l_old = [w.numpy() for w in l.weights]
 
                 j += 1
-                if i == 0:
+                if i == 1:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     assert (new_w.numpy() != l.weights[0].numpy()).all()
                     l.weights[0].assign(new_w)
