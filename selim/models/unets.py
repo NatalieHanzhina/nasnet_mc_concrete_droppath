@@ -1,6 +1,7 @@
 
 from models.xception_padding1 import Xception
 from models.xception_padding_mc_dropout import Xception_mc_dropout
+from models.xception_padding_mc_dropout_to_check import Xception_mc_dropout_to_check
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
@@ -247,7 +248,7 @@ def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoi
 
 
 def xception_fpn_mc(input_shape, channels=1, p=0.3, weights='imagenet', activation="sigmoid"):
-    xception_mc = Xception_mc_dropout(input_shape=input_shape, p=p, weights=weights, include_top=False)
+    xception_mc = Xception_mc_dropout_to_check(input_shape=input_shape, p=p, weights=weights, include_top=False)
     conv1 = xception_mc.get_layer("block1_conv2_act").output
     conv2 = xception_mc.get_layer("block3_sepconv2_bn").output
     conv3 = xception_mc.get_layer("block4_sepconv2_bn").output
