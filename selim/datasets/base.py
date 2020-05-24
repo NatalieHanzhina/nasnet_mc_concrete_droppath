@@ -197,7 +197,8 @@ class BaseMaskDatasetIterator(Iterator):
         t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         #print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
         #print(f'transformed msk min: {np.min(t_y)}, max: {np.max(t_y)}, init msk min: {np.min(batch_y)}, max: {np.max(batch_y)}')
-        if self.preprocessing_function:
+
+        if self.preprocessing_function and t_x.shape[-1] == 3:
             preprocessed_t_x = imagenet_utils.preprocess_input(t_x, mode=self.preprocessing_function)
         else:
             preprocessed_t_x = t_x
@@ -237,6 +238,11 @@ class BaseMaskDatasetIterator(Iterator):
 
     def transform_batch_x(self, batch_x):
         norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+        if batch_x.shape[-1] > 3:
+            mean = [103.939, 116.779, 123.68]
+            r_mean = mean[::-1]
+            t_n_batch_x = norm_batch_x[..., ::-1] - np.asarray((r_mean+r_mean)[:batch_x.shape[-1]])
+            return t_n_batch_x
         return norm_batch_x
 
     def next(self):
