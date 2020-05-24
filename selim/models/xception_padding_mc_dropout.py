@@ -315,6 +315,7 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
+    print(model.summary())
     print('______________XCEPTION_MC_______________')
     debug = 0
     # load weights
@@ -359,18 +360,19 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                     assert (new_w.numpy() != l.weights[0].numpy()).all()
 
                     l.weights[0].assign(new_w)
-                else:
-                    for (w, d_w) in zip (l.weights, d_l.weights):
-                        w_old = w.numpy().copy()
+                    continue
 
-                        w.assign(d_w)
+                for (w, d_w) in zip(l.weights, d_l.weights):
+                    w_old = w.numpy().copy()
 
-                        if debug:
-                            check = (w.numpy()==w_old).all()
-                            print(check)
-                            if check:
-                                print(w.name)
-                                print(w_old)
+                    w.assign(d_w)
+
+                    if debug:
+                        check = (w.numpy()==w_old).all()
+                        print(check)
+                        if check:
+                            print(w.name)
+                            print(w_old)
                 if debug:
                     input()
             assert j == len(donor_model.layers)

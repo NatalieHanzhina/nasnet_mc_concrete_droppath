@@ -256,6 +256,7 @@ def Xception(include_top=True, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
+    print(model.summary())
     print('______________XCEPTION_______________')
     debug=1
     # load weights
