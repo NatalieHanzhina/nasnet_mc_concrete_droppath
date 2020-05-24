@@ -1,5 +1,6 @@
 
 from models.xception_padding1 import Xception
+from models.xception_padding_mc_dropout import Xception_mc_dp_dropout
 from models.xception_padding_mc_dropout import Xception_mc_dropout
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
@@ -284,7 +285,7 @@ def xception_fpn_mc(input_shape, channels=1, p=0.3, weights='imagenet', activati
 
 
 def xception_fpn_mc_dp(input_shape, channels=1, p=0.3, weights='imagenet', activation="sigmoid"):
-    xception_mc = Xception_mc_dropout(input_shape=input_shape, p=p, weights=weights, include_top=False)
+    xception_mc = Xception_mc_dp_dropout(input_shape=input_shape, p=p, weights=weights, include_top=False)
     conv1 = xception_mc.get_layer("block1_conv2_act").output
     conv2 = xception_mc.get_layer("block3_sepconv2_bn").output
     conv3 = xception_mc.get_layer("block4_sepconv2_bn").output
@@ -302,13 +303,12 @@ def xception_fpn_mc_dp(input_shape, channels=1, p=0.3, weights='imagenet', activ
             prediction_fpn_block(P2, "P2"),
         ]
     )
-    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    #x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
     x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = decoder_block_no_bn(x, 128, conv1, 'up4')
-    x = Dropout(p)(x, training=True)
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = UpSampling2D()(x)
-    x = Dropout(p)(x, training=True)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
     x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
