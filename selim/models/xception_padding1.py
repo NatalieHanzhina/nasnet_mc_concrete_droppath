@@ -257,6 +257,7 @@ def Xception(include_top=True, weights='imagenet',
                                       classes=classes)
 
     # load weights
+    print('______________XCEPTION_______________')
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:
             print('Loading pretrained ImageNet weights, include top')
@@ -279,12 +280,28 @@ def Xception(include_top=True, weights='imagenet',
             #model.set_weights(final_donor_weights)
 
             for i, (l, d_l) in enumerate(zip(model.layers, donor_model.layers)):
+
+                print(l.name, '\t', d_l.name)
+
                 if i == 1:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
+
+                    assert (new_w.numpy() != l.weights[0].numpy()).all()
+
                     l.weights[0].assign(new_w)
                     continue
                 for (w, d_w) in zip(l.weights, d_l.weights):
+                    w_old = w.numpy().copy()
+
                     w.assign(d_w)
+
+                    check = (w.numpy()==w_old).all()
+                    print(check)
+                    if check:
+                        print(w.name)
+                        print(w_old)
+
+                input()
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')
