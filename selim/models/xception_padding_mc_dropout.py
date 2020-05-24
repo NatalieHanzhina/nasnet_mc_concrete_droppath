@@ -279,7 +279,7 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
-    print(model.summary())
+    #print(model.summary())
     print('______________XCEPTION_MC_______________')
     debug = 0
     # load weights
