@@ -22,27 +22,26 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import warnings
+
 import h5py
 import numpy as np
 import tensorflow as tf
-import warnings
-
 from keras_applications.imagenet_utils import _obtain_input_shape
-from tensorflow.keras.models import Model
+from tensorflow.keras import backend as K
 from tensorflow.keras import layers
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import Input
-from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Conv2D
-from tensorflow.keras.layers import SeparableConv2D
-from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import GlobalMaxPooling2D
-from tensorflow.keras.utils import get_source_inputs
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import SeparableConv2D
+from tensorflow.keras.models import Model
 from tensorflow.keras.utils import get_file
-from tensorflow.keras import backend as K
-
+from tensorflow.keras.utils import get_source_inputs
 
 TF_WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/xception_weights_tf_dim_ordering_tf_kernels.h5'
 TF_WEIGHTS_PATH_NO_TOP = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/xception_weights_tf_dim_ordering_tf_kernels_notop.h5'
@@ -256,9 +255,6 @@ def Xception(include_top=True, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
-    print(model.summary())
-    print('______________XCEPTION_______________')
-    debug=1
     # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:
@@ -282,31 +278,12 @@ def Xception(include_top=True, weights='imagenet',
             #model.set_weights(final_donor_weights)
 
             for i, (l, d_l) in enumerate(zip(model.layers, donor_model.layers)):
-
-                if debug:
-                    print(l.name, '\t', d_l.name)
-
                 if i == 1:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
-
-                    assert (new_w.numpy() != l.weights[0].numpy()).all()
-
                     l.weights[0].assign(new_w)
                     continue
                 for (w, d_w) in zip(l.weights, d_l.weights):
-                    w_old = w.numpy().copy()
-
                     w.assign(d_w)
-
-                    if debug:
-                        check = (w.numpy()==w_old).all()
-                        print(check)
-                        if check:
-                            print(w.name)
-                            print(w_old)
-
-                if debug:
-                    input()
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')

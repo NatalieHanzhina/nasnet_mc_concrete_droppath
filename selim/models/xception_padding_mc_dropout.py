@@ -279,9 +279,6 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
-    #print(model.summary())
-    print('______________XCEPTION_MC_______________')
-    debug = 0
     # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:
@@ -314,31 +311,15 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
                 if 'dropout' in l.name and 'dropout' not in d_l.name:
                     continue
 
-                if debug:
-                    print(l.name, '\t', d_l.name)
-
                 j += 1
                 if i == 1:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
-
-                    assert (new_w.numpy() != l.weights[0].numpy()).all()
-
                     l.weights[0].assign(new_w)
                     continue
 
                 for (w, d_w) in zip(l.weights, d_l.weights):
-                    w_old = w.numpy().copy()
-
                     w.assign(d_w)
 
-                    if debug:
-                        check = (w.numpy()==w_old).all()
-                        print(check)
-                        if check:
-                            print(w.name)
-                            print(w_old)
-                if debug:
-                    input()
             assert j == len(donor_model.layers)
 
             if weights != 'imagenet':
