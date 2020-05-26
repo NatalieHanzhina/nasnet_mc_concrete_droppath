@@ -157,7 +157,7 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
     residual = Conv2D(128, (1, 1), strides=(2, 2),
                       padding='same', use_bias=False)(x)
     residual = BatchNormalization()(residual)
-    residual = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(residual, training=True)
+    residual = Dropout(p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
 
     x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
@@ -174,7 +174,7 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
     residual = Conv2D(256, (1, 1), strides=(2, 2),
                       padding='same', use_bias=False)(x)
     residual = BatchNormalization()(residual)
-    residual = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(residual, training=True)
+    residual = Dropout(p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
 
     x = Activation('relu', name='block3_sepconv1_act')(x)
@@ -192,7 +192,7 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
     residual = Conv2D(728, (1, 1), strides=(2, 2),
                       padding='same', use_bias=False)(x)
     residual = BatchNormalization()(residual)
-    residual = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(residual, training=True)
+    residual = Dropout(p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
 
     x = Activation('relu', name='block4_sepconv1_act')(x)
@@ -229,7 +229,7 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
     residual = Conv2D(1024, (1, 1), strides=(2, 2),
                       padding='same', use_bias=False)(x)
     residual = BatchNormalization()(residual)
-    residual = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(residual, training=True)
+    residual = Dropout(p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
     x = Activation('relu', name='block13_sepconv1_act')(x)
     x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block13_sepconv1')(x)

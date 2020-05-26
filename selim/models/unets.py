@@ -1,7 +1,7 @@
 
 from models.xception_padding1 import Xception
-from models.xception_padding_mc_dropout import Xception_mc_dp_dropout
 from models.xception_padding_mc_dropout import Xception_mc_dropout
+from models.xception_padding_mc_dp_dropout import Xception_mc_dp_dropout
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
