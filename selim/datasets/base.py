@@ -131,7 +131,7 @@ class BaseMaskDatasetIterator(Iterator):
             if img_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
                 image = np.array(img_to_array(load_img(img_path)), "uint8")
             elif img_path.rfind('.nii.gz') or img_path.rfind('.nii') or os.path.isdir(img_path):
-                image = self.read_nii_gz_img_archive(img_path, id_in_archive)
+                image = self.read_and_norm_img_from_nii_gz_archive(img_path, id_in_archive)
             else:
                 raise ValueError("Unsupported type of image input data")
 
@@ -206,7 +206,7 @@ class BaseMaskDatasetIterator(Iterator):
         #input()
         return preprocessed_t_x, t_y
 
-    def read_nii_gz_img_archive(self, img_path, id_in_archive):
+    def read_img_from_nii_gz_archive(self, img_path, id_in_archive):
         img = []
         for i, channel in enumerate(os.listdir(img_path)):
             if i >= self.channels:
@@ -217,12 +217,28 @@ class BaseMaskDatasetIterator(Iterator):
             else:
                 nib_fs = nib.load(os.path.join(channel_path, os.listdir(channel_path)[0]))
             img.append(nib_fs.get_fdata()[..., id_in_archive])
-        if len(np.asarray(img).shape) < 3:
-            print([k.shape for k in img])
-            print(channel_path)
-            print(os.listdir(img_path))
-            print(np.asarray(img).shape)
-            input()
+        image = np.asarray(img)
+        image = image.transpose((1, 2, 0))
+        return image
+
+    def read_and_norm_img_from_nii_gz_archive(self, img_path, id_in_archive):
+        img = []
+        for i, channel in enumerate(os.listdir(img_path)):
+            if i >= self.channels:
+                break
+            channel_path = os.path.join(img_path, channel)
+            if channel.endswith('nii.gz') or channel.endswith('.nii'):
+                channel_nib_fs = nib.load(channel_path)
+            else:
+                channel_nib_fs = nib.load(os.path.join(channel_path, os.listdir(channel_path)[0]))
+            ch_array = channel_nib_fs.get_fdata()
+            img_to_add = ch_array[..., id_in_archive]
+            ch_max = max(ch_array.max(), 1e-2)
+            ch_min = ch_array.min()
+            img_to_add = (img_to_add - ch_min)
+            img_to_add = img_to_add * 255 / ch_max
+
+            img.append(img_to_add)
         image = np.asarray(img)
         image = image.transpose((1, 2, 0))
         return image
@@ -237,33 +253,12 @@ class BaseMaskDatasetIterator(Iterator):
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
-        norm_axis = (1,2)
-        batch_x_mins = batch_x.min(axis=norm_axis, keepdims=True)
-        if batch_x_mins.min() != 0:
-            batch_x_new = batch_x-batch_x_mins
-        else:
-            batch_x_new = batch_x
-        batch_x_maxes = batch_x_new.max(axis=norm_axis, keepdims=True)
-        batch_x_maxes = np.where(batch_x_maxes > 0, batch_x_maxes, 1e-2)
-        norm_batch_x = batch_x_new*255/batch_x_maxes
-
-        #print('')
-        #for l1 in range(norm_batch_x.shape[0]):
-        #    for l2 in range(norm_batch_x.shape[-1]):
-                #print('Max:', norm_batch_x[l1, ..., l2].max(), 'Min:', norm_batch_x[l1, ..., l2].min())
-                #if (abs(norm_batch_x[l1, ..., l2].max() -255) >= 1 and \
-                #    norm_batch_x[l1, ..., l2].max() != 0) or \
-                #    abs(norm_batch_x[l1, ..., l2].min()) > 3 :
-                #    pass
-                    #print('\n\n PROBLEMS ENCOUNTERED! Max:', norm_batch_x[l1, ..., l2].max(), 'Min:', norm_batch_x[l1, ..., l2].min())
-                    #input()
-
         if batch_x.shape[-1] > 3:
             mean = [103.939, 116.779, 123.68]
             r_mean = mean[::-1]
-            t_n_batch_x = norm_batch_x[..., ::-1] - np.asarray((r_mean+r_mean)[:batch_x.shape[-1]])
+            t_n_batch_x = batch_x[..., ::-1] - np.asarray((r_mean+r_mean)[:batch_x.shape[-1]])
             return t_n_batch_x
-        return norm_batch_x
+        return batch_x
 
     def next(self):
         with self.lock:
