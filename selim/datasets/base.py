@@ -237,12 +237,26 @@ class BaseMaskDatasetIterator(Iterator):
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
-        batch_x_max = batch_x.max(axis=(1,2), keepdims=True)
-        norm_batch_x = batch_x*255/batch_x_max
+        norm_axis = (1,2)
+        batch_x_mins = batch_x.min(axis=norm_axis, keepdims=True)
+        if batch_x_mins.min() != 0:
+            batch_x_new = batch_x-batch_x_mins
+        else:
+            batch_x_new = batch_x
+        batch_x_maxes = batch_x_new.max(axis=norm_axis, keepdims=True)
+        batch_x_maxes = np.where(batch_x_maxes > 0, batch_x_maxes, 1e-2)
+        norm_batch_x = batch_x_new*255/batch_x_maxes
 
-        for l1 in range(norm_batch_x.shape[0]):
-            for l2 in range(norm_batch_x.shape[-1]):
-                assert norm_batch_x[l1, ..., l2].max() == 255
+        #print('')
+        #for l1 in range(norm_batch_x.shape[0]):
+        #    for l2 in range(norm_batch_x.shape[-1]):
+                #print('Max:', norm_batch_x[l1, ..., l2].max(), 'Min:', norm_batch_x[l1, ..., l2].min())
+                #if (abs(norm_batch_x[l1, ..., l2].max() -255) >= 1 and \
+                #    norm_batch_x[l1, ..., l2].max() != 0) or \
+                #    abs(norm_batch_x[l1, ..., l2].min()) > 3 :
+                #    pass
+                    #print('\n\n PROBLEMS ENCOUNTERED! Max:', norm_batch_x[l1, ..., l2].max(), 'Min:', norm_batch_x[l1, ..., l2].min())
+                    #input()
 
         if batch_x.shape[-1] > 3:
             mean = [103.939, 116.779, 123.68]
