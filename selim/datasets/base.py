@@ -237,7 +237,13 @@ class BaseMaskDatasetIterator(Iterator):
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):
-        norm_batch_x = cv2.normalize(batch_x, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+        batch_x_max = batch_x.max(axis=(1,2), keepdims=True)
+        norm_batch_x = batch_x*255/batch_x_max
+
+        for l1 in range(norm_batch_x.shape[0]):
+            for l2 in range(norm_batch_x.shape[-1]):
+                assert norm_batch_x[l1, ..., l2].max() == 255
+
         if batch_x.shape[-1] > 3:
             mean = [103.939, 116.779, 123.68]
             r_mean = mean[::-1]
