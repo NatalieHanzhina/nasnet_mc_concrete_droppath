@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ########## Xception FPN #############
-python test.py \
+python test_with_dp.py \
 --num_workers 8 \
 --channels 3 \
 --pretrained_weights None \
