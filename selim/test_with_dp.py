@@ -4,6 +4,7 @@ import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
 from models.model_factory import make_model
+from tqdm import tqdm
 from params import args
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -16,6 +17,7 @@ import tensorflow as tf
 
 tf.random.set_seed(1)
 import timeit
+from tensorflow.keras.metrics import Mean
 from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 
@@ -34,7 +36,7 @@ for gpu in gpus:
 
 
 if __name__ == '__main__':
-    predictions_repetition = 50
+    predictions_repetition = 2
     t0 = timeit.default_timer()
 
     weights = [os.path.join(args.models_dir, m) for m in args.models]
@@ -51,6 +53,9 @@ if __name__ == '__main__':
     data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
+    #print(dir(data_generator))
+    #print(data_generator.__len__())
+    #input()
 
     for i, model in enumerate(models):
         print(f'Evaluating {weights[i]} model')
@@ -62,28 +67,46 @@ if __name__ == '__main__':
                   optimizer=optimizer,
                   metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])
 
-        predicts = []
-        labels = []
-        for x, y in data_generator:
+        metrics = {args.loss_function: [],
+                   'binary_crossentropy': [],
+                   'hard_dice_coef_ch1': [],
+                   'hard_dice_coef': []}
+        loop_stop = data_generator.__len__()
+        counter = 0
+        for x, y in tqdm(data_generator):
+            counter +=1
+            if counter > loop_stop:
+                break
             predicts_x = []
             for _ in range(predictions_repetition):
                 predicts_x.append(model.predict(x, verbose=0))
-            mean_predicts = np.mean(np.asarray(predicts_x))
-            print(f'{args.loss_function}: {loss(mean_predicts, y):.4f}, '
-                  f'binary_crossentropy: {binary_crossentropy(mean_predicts, y):.4f}, '
-                  f'hard_dice_coef_ch1: {hard_dice_coef_ch1(mean_predicts, y):.4f}, '
-                  f'hard_dice_coef]: {hard_dice_coef(mean_predicts, y):.4f}', end='\r')
-            predicts.append(mean_predicts)
-            labels.append(y)
-        predicts, labels = np.asarray(predicts), np.asarray(labels)
+            mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=0)
+            metrics[args.loss_function].append(loss(y, mean_predicts))
+            metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts))
+            metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts))
+            metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts))
 
-        # test_loss = model.evaluate_generator(data_generator, verbose=1)
+            #print('\n', mean_predicts.shape)
+            #print(np.asarray(predicts_x).shape, mean_predicts.shape, y.shape)
+            # input()
+            #print(f'{args.loss_function}: {loss(y, mean_predicts):.4f}, '
+            #      f'binary_crossentropy: {binary_crossentropy(y, mean_predicts):.4f}, '
+            #      f'hard_dice_coef_ch1: {hard_dice_coef_ch1(y, mean_predicts):.4f}, '
+            #      f'hard_dice_coef: {hard_dice_coef(y, mean_predicts):.4f}')
+
+        #predicts, labels = tf.convert_to_tensor(np.asarray(predicts)), tf.convert_to_tensor(np.asarray(labels))
+        loss_value, bce_value, hdc1_value, hdc_value = Mean()(metrics[args.loss_function]), \
+                                                       Mean()(metrics['binary_crossentropy']), \
+                                                       Mean()(metrics['hard_dice_coef_ch1']), \
+                                                       Mean()(metrics['hard_dice_coef'])
+        print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'{weights[i]} evaluation results:')
         # print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
-        print(f'{args.loss_function}: {loss(predicts, labels):.4f}, '
-              f'binary_crossentropy: {binary_crossentropy(predicts, labels):.4f}, '
-              f'hard_dice_coef_ch1: {hard_dice_coef_ch1(predicts, labels):.4f}, '
-              f'hard_dice_coef]: {hard_dice_coef(predicts, labels):.4f}')
+        print(f'{args.loss_function}: {loss_value:.4f}, '
+              f'binary_crossentropy: {bce_value:.4f}, '
+              f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
+              f'hard_dice_coef: {hdc_value:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
+    exit(0)

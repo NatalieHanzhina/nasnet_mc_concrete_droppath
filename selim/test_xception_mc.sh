@@ -9,4 +9,4 @@ python test_with_dp.py \
 --network xception_fpn_mc \
 --batch_size 1 \
 --out_channels 2 \
---models best_mc_xception_fpn_mc.h5
+--models best_dh_dicexception_fpn.h5

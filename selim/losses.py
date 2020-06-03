@@ -1,5 +1,5 @@
-import keras.backend as K
-from keras.losses import categorical_crossentropy
+import tensorflow.keras.backend as K
+from tensorflow.keras.losses import categorical_crossentropy
 
 
 def hard_dice_coef(y_true, y_pred, smooth=1e-3):
