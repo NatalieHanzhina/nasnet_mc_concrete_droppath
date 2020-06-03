@@ -4,8 +4,8 @@ import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
 from models.model_factory import make_model
-from tqdm import tqdm
 from params import args
+from tqdm import tqdm
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
@@ -23,28 +23,34 @@ from tensorflow.keras.optimizers import RMSprop
 
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
 
-all_ids = []
-all_images = []
-all_masks = []
 
-OUT_CHANNELS = args.out_channels
+def main():
+    all_ids = []
+    all_images = []
+    all_masks = []
 
-
-gpus = tf.config.experimental.list_physical_devices('GPU')
-for gpu in gpus:
-    tf.config.experimental.set_memory_growth(gpu, True)
+    OUT_CHANNELS = args.out_channels
 
 
-if __name__ == '__main__':
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
+
+
     predictions_repetition = 2
+    model_without_dropout = True
     t0 = timeit.default_timer()
 
     weights = [os.path.join(args.models_dir, m) for m in args.models]
     models = []
     for w in weights:
-        model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
-        print("Building model {} from weights {} ".format(args.network, w))
-        model.load_weights(w)
+        if model_without_dropout:
+            model = load_model_weights(w)
+        else:
+            model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+            print("Building model {} from weights {} ".format(args.network, w))
+            model.load_weights(w)
         models.append(model)
     #os.makedirs(test_pred, exist_ok=True)
 
@@ -110,3 +116,30 @@ if __name__ == '__main__':
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
     exit(0)
+
+
+def load_model_weights(w):
+    model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+    donor_model = make_model(args.network[:-3], (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+    print("Building dropout model {} from weights without dropout {} ".format(args.network, w))
+    donor_model.load_weights(w)
+
+    j = 0
+    for i, l in enumerate(model.layers):
+        if j >= len(donor_model.layers):
+            break
+        d_l = donor_model.layers[j]
+        # if l.name != d_l.name: # incorrect names
+        if 'dropout' in l.name and 'dropout' not in d_l.name:
+            continue
+
+        j += 1
+        for (w, d_w) in zip(l.weights, d_l.weights):
+            w.assign(d_w)
+
+    assert j == len(donor_model.layers)
+    return model
+
+
+if __name__ == '__main__':
+    main()

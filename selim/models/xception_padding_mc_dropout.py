@@ -271,20 +271,12 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
     # Create model.
     model = Model(inputs, x, name='xception')
     # Create donor model
-    donor_model = None
     if input_shape[-1] > 3 and weights is not None:
         input_shape1 = (*input_shape[:-1], 3)
         donor_model = get_donor_model(include_top, weights, input_tensor=None,
                                       input_shape=input_shape1,
                                       pooling=pooling,
                                       classes=classes)
-    elif input_shape[-1] == 3 and weights not in [None, 'imagenet']:
-        input_shape1 = (*input_shape[:-1], 3)
-        donor_model = get_donor_model(include_top, weights, input_tensor=None,
-                                      input_shape=input_shape1,
-                                      pooling=pooling,
-                                      classes=classes)
-
 
     # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
@@ -349,25 +341,7 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
         else:
             model.load_weights(weights_path)
     elif weights is not None:
-        if donor_model is None:
-            model.load_weights(weights)
-        else:
-            donor_model.load_weights(weights)
-            j = 0
-            for i, l in enumerate(model.layers):
-                if j >= len(donor_model.layers):
-                    break
-                d_l = donor_model.layers[j]
-                # if l.name != d_l.name: # incorrect names
-                if 'dropout' in l.name and 'dropout' not in d_l.name:
-                    continue
-
-                j += 1
-                for (w, d_w) in zip(l.weights, d_l.weights):
-                    w.assign(d_w)
-
-            assert j == len(donor_model.layers)
-
+        model.load_weights(weights)
     else:
         print('No pretrained weights passed')
 
