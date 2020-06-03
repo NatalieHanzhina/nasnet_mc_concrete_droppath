@@ -39,9 +39,7 @@ def main():
     weights = [os.path.join(args.models_dir, m) for m in args.models]
     models = []
     for w in weights:
-        model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
-        print("Building model {} from weights {} ".format(args.network, w))
-        model.load_weights(w)
+        model = make_and_load_model(w)
         models.append(model)
     #os.makedirs(test_pred, exist_ok=True)
 
@@ -69,17 +67,17 @@ def main():
     print('Time: {:.3f} min'.format(elapsed / 60))
 
 
-def load_model_weights(w):
+def make_and_load_model(w):
     model = make_model(args.network[:-3], (None, None, args.channels), pretrained_weights=args.pretrained_weights)
     donor_model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
     print("Building model without dropout {} from weights with dropout {} ".format(args.network[:-3], w))
     donor_model.load_weights(w)
 
     j = 0
-    for i, l in enumerate(donor_model.layers):
+    for i, d_l in enumerate(donor_model.layers):
         if j >= len(model.layers):
             break
-        d_l = donor_model.layers[j]
+        l = model.layers[j]
         # if l.name != d_l.name: # incorrect names
         if 'dropout' in d_l.name and 'dropout' not in l.name:
             continue
