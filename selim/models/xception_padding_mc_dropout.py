@@ -22,28 +22,27 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import warnings
+
 import h5py
 import numpy as np
 import tensorflow as tf
-import warnings
-
 from keras_applications.imagenet_utils import _obtain_input_shape
-from tensorflow.keras.models import Model
+from tensorflow.keras import backend as K
 from tensorflow.keras import layers
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
-from tensorflow.keras.layers import Input
-from tensorflow.keras.layers import BatchNormalization
-from tensorflow.keras.layers import Activation
-from tensorflow.keras.layers import Conv2D
-from tensorflow.keras.layers import SeparableConv2D
-from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import GlobalMaxPooling2D
-from tensorflow.keras.utils import get_source_inputs
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import SeparableConv2D
+from tensorflow.keras.models import Model
 from tensorflow.keras.utils import get_file
-from tensorflow.keras import backend as K
-
+from tensorflow.keras.utils import get_source_inputs
 
 TF_WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/xception_weights_tf_dim_ordering_tf_kernels.h5'
 TF_WEIGHTS_PATH_NO_TOP = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/xception_weights_tf_dim_ordering_tf_kernels_notop.h5'
@@ -272,12 +271,20 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
     # Create model.
     model = Model(inputs, x, name='xception')
     # Create donor model
+    donor_model = None
     if input_shape[-1] > 3 and weights is not None:
         input_shape1 = (*input_shape[:-1], 3)
         donor_model = get_donor_model(include_top, weights, input_tensor=None,
                                       input_shape=input_shape1,
                                       pooling=pooling,
                                       classes=classes)
+    elif input_shape[-1] == 3 and weights not in [None, 'imagenet']:
+        input_shape1 = (*input_shape[:-1], 3)
+        donor_model = get_donor_model(include_top, weights, input_tensor=None,
+                                      input_shape=input_shape1,
+                                      pooling=pooling,
+                                      classes=classes)
+
 
     # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
@@ -342,7 +349,25 @@ def Xception_mc_dropout(include_top=True, p=0.3, weights='imagenet',
         else:
             model.load_weights(weights_path)
     elif weights is not None:
-        model.load_weights(weights)
+        if donor_model is None:
+            model.load_weights(weights)
+        else:
+            donor_model.load_weights(weights)
+            j = 0
+            for i, l in enumerate(model.layers):
+                if j >= len(donor_model.layers):
+                    break
+                d_l = donor_model.layers[j]
+                # if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name:
+                    continue
+
+                j += 1
+                for (w, d_w) in zip(l.weights, d_l.weights):
+                    w.assign(d_w)
+
+            assert j == len(donor_model.layers)
+
     else:
         print('No pretrained weights passed')
 
