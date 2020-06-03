@@ -38,7 +38,7 @@ def main():
 
 
 
-    predictions_repetition = 2
+    predictions_repetition = 50
     model_without_dropout = True
     t0 = timeit.default_timer()
 
