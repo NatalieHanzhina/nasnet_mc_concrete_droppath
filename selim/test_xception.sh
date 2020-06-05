@@ -7,7 +7,7 @@ python test.py \
 --pretrained_weights None \
 --preprocessing_function caffe \
 --network xception_fpn \
---batch_size 1 \
+--batch_size 3 \
 --out_channels 2 \
 --models 'best_xception_fpn_ideal[3ch].h5'
 

@@ -39,7 +39,7 @@ def main():
 
 
     predictions_repetition = 50
-    model_without_dropout = True
+    model_without_dropout = False
     t0 = timeit.default_timer()
 
     weights = [os.path.join(args.models_dir, m) for m in args.models]
