@@ -1,7 +1,7 @@
 
 from models.xception_padding1 import Xception
-from models.xception_padding_mc_dropout import Xception_mc_dropout
 from models.xception_padding_mc_dp_dropout import Xception_mc_dp_dropout
+from models.xception_padding_mc_dropout import Xception_mc_dropout
 from resnets import ResNet101, ResNet152, ResNet50
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
@@ -144,6 +144,72 @@ def resnet152_fpn(input_shape, channels=1, activation="softmax"):
     x = UpSampling2D()(x)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
+    x = Activation(activation)(x)
+    model = Model(img_input, x)
+    return model
+
+
+def resnet152_fpn_mc(input_shape, channels=1, p=0.3, activation="softmax"):
+    img_input = Input(input_shape)
+    resnet_base = ResNet152_mc(img_input, include_top=True)
+    resnet_base.load_weights(download_resnet_imagenet("resnet152"))
+    conv1 = resnet_base.get_layer("conv1_relu").output
+    conv2 = resnet_base.get_layer("res2c_relu").output
+    conv3 = resnet_base.get_layer("res3b7_relu").output
+    conv4 = resnet_base.get_layer("res4b35_relu").output
+    conv5 = resnet_base.get_layer("res5c_relu").output
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = Dropout(p)(x, training=True)
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = Dropout(p)(x, training=True)
+    x = UpSampling2D()(x)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = Dropout(p)(x, training=True)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    x = Dropout(p)(x, training=True)
+    x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
+    x = Activation(activation)(x)
+    model = Model(img_input, x)
+    return model
+
+
+def resnet152_fpn_mc_dp(input_shape, channels=1, p=0.3, activation="softmax"):
+    img_input = Input(input_shape)
+    resnet_base = ResNet152_mc_dp(img_input, include_top=True)
+    resnet_base.load_weights(download_resnet_imagenet("resnet152"))
+    conv1 = resnet_base.get_layer("conv1_relu").output
+    conv2 = resnet_base.get_layer("res2c_relu").output
+    conv3 = resnet_base.get_layer("res3b7_relu").output
+    conv4 = resnet_base.get_layer("res4b35_relu").output
+    conv5 = resnet_base.get_layer("res5c_relu").output
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = UpSampling2D()(x)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    x = Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
     model = Model(img_input, x)
