@@ -6,15 +6,18 @@ keras_resnet.models._2d
 
 This module implements popular two-dimensional residual models.
 """
-
+from enum import Enum
 
 from tensorflow import keras
-import tensorflow.keras.backend
-import tensorflow.keras.layers
-import tensorflow.keras.models
-import tensorflow.keras.regularizers
 
-def ResNet(inputs, blocks, block, include_top=True, classes=1000, numerical_names=None, *args, **kwargs):
+
+class NetType(Enum):
+    pure = 'pure',
+    mc = 'mc',
+    mc_dp = 'mc_dp'
+
+
+def ResNet(inputs, blocks, block, include_top=True, net_type=NetType.pure, p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
 
@@ -60,6 +63,10 @@ def ResNet(inputs, blocks, block, include_top=True, classes=1000, numerical_name
 
     x = keras.layers.ZeroPadding2D(padding=3, name="padding_conv1")(inputs)
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
+    if net_type == NetType.mc:
+        x = keras.layers.Dropout(p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = keras.layers.Dropout(p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
@@ -248,7 +255,43 @@ def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 8, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
+                  net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
+
+
+def ResNet152_mc(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
+    """
+    Constructs a `keras.models.Model` according to the ResNet152 specifications with MC dropout.
+
+    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
+
+    :param blocks: the network’s residual architecture
+
+    :param include_top: if true, includes classification layers
+
+    :param classes: number of classes to classify (include_top must be true)
+
+    :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
+
+    Usage:
+
+        >>> import keras_resnet.models
+
+        >>> shape, classes = (224, 224, 3), 1000
+
+        >>> x = keras.layers.Input(shape)
+
+        >>> model = keras_resnet.models.ResNet152(x, classes=classes)
+
+        >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
+    """
+    if blocks is None:
+        blocks = [3, 8, 36, 3]
+    numerical_names = [False, True, True, False]
+
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
+                  net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
+
 
 
 def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -281,11 +324,9 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 24, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
+                  net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
 
-
-import tensorflow.keras.layers
-import tensorflow.keras.regularizers
 
 import keras_resnet.layers
 
