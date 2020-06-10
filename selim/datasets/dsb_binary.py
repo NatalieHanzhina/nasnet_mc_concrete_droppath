@@ -72,7 +72,7 @@ class DSB2018BinaryDataset:
         all_paths = list(map(lambda x: self.images_dir + '/' + x, all_ids))
         if len(all_ids) == 0:
             all_ids, all_paths = self.index_input_data()
-        train_ids, val_ids, train_paths, val_paths = train_test_split(all_ids, all_paths, test_size=0.2, random_state=self.seed)
+        train_ids, val_ids, train_paths, val_paths = train_test_split(all_ids, all_paths, test_size=0.1, random_state=self.seed)
         return train_ids, val_ids, train_paths, val_paths
 
     def index_input_data(self, check_masks=True):
@@ -204,7 +204,7 @@ class DSB2018BinaryDatasetIterator(BaseMaskDatasetIterator):
                 img0[..., 2][full_diff_mask] = median(img0[..., 2], mask=full_diff_mask)[full_diff_mask]
             img = img0[y0:y0 + input_shape[0], x0:x0 + input_shape[1], :]
             lbl = lbl0[y0:y0 + input_shape[0], x0:x0 + input_shape[1]]
-            msk = self.create_mask(lbl)
+            msk = self.create_opencv_mask(lbl)
         return msk, img, lbl
 
     def create_mask(self,  labels):

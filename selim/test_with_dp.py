@@ -1,5 +1,6 @@
 import os
 
+import gc
 import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
@@ -99,6 +100,8 @@ def main():
             #      f'binary_crossentropy: {binary_crossentropy(y, mean_predicts):.4f}, '
             #      f'hard_dice_coef_ch1: {hard_dice_coef_ch1(y, mean_predicts):.4f}, '
             #      f'hard_dice_coef: {hard_dice_coef(y, mean_predicts):.4f}')
+            gc.collect()
+
 
         #predicts, labels = tf.convert_to_tensor(np.asarray(predicts)), tf.convert_to_tensor(np.asarray(labels))
         loss_value, bce_value, hdc1_value, hdc_value = Mean()(metrics[args.loss_function]), \

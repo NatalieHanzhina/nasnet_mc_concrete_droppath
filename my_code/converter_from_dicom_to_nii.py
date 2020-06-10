@@ -1,50 +1,34 @@
-import numbers
 import os
 import shutil
-import time
 from argparse import ArgumentParser
+from shutil import rmtree
 
+import cv2
 import imageio
 import nibabel as nib
 import numpy as np
 import pydicom
-import pydicom.uid
 from tqdm import tqdm
 
-#IMAGES_MODES = ['ML_DWI', 'ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
-IMAGES_MODES = ['ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
-DIR_FILTER_PREFIX = 'Ax'
-DIR_FILTER_NAME = 'AX'
-MSK_SHAPE = (512, 512)
-
-EXCLUDED_DIRS = 0
+# MRI_MODES = ['ML_DWI', 'ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
+MRI_MODES = ['ML_T1', 'ML_T1+C', 'ML_T2', 'ML_T2_FLAIR']
+MRI_AXE = 'Ax'
+EXCLUDED_DIR_COUNTER = 0
 
 
 def main():
-    data_dir, save_path = get_args()
-    #convert_masks_to_porper_ext(data_dir)
-    files_to_parse_gen = get_files_to_parse_generator(data_dir)
-    #check_sm_shit(files_to_parse_gen, data_dir, save_path)
-    open_and_write_files_to_parse(files_to_parse_gen, data_dir, save_path)
-    print(f'Excluded {EXCLUDED_DIRS} directories')
+    data_dir, save_path, resize_size = get_args()
+    convert_masks_to_porper_ext(data_dir)
+    open_and_write_files_to_parse(data_dir, save_path, resize_size)
 
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('path_to_data_dir', help='Path to data dir to parse')
     parser.add_argument('--save_path', help='Path to data dir to save results', default='converted_nii_gz')
+    parser.add_argument('--resize_size', default=256)
     args = parser.parse_args()
-    return args.path_to_data_dir, args.save_path
-
-
-def get_files_to_parse_generator(dir_path):
-    patients = os.listdir(dir_path)
-    for patient in tqdm(patients):
-        patient_path = os.path.join(dir_path, patient)
-        sub_dirs = os.listdir(patient_path)
-        correct_modes = [subdir for subdir in sub_dirs if subdir in IMAGES_MODES]
-        if len(correct_modes) > 0:
-            yield patient_path, correct_modes
+    return args.path_to_data_dir, args.save_path, args.resize_size
 
 
 def convert_masks_to_porper_ext(dir, ext_to_set='.png'):
@@ -57,204 +41,164 @@ def convert_masks_to_porper_ext(dir, ext_to_set='.png'):
                 shutil.move(os.path.join(par_dir, f), path_to_copy_to)
 
 
-def check_sm_shit(files_gen, source_dir, save_dir_path, msk_ext='.png'):
-    #source_dir_name = os.path.split(source_dir)[1]
-    for parent_path, channels in files_gen:
-        if source_dir[-1] == '/':
-            save_msk_path = str.replace(parent_path, source_dir[:-1], os.path.join(save_dir_path, 'masks'))
-        else:
-            save_msk_path = str.replace(parent_path, source_dir, os.path.join(save_dir_path, 'masks'))
-        #save_msk_path = str.replace(parent_path, source_dir[:-1], os.path.join(save_dir_path, 'masks'))
-        save_msk_path = os.path.join(save_msk_path, 'seg')
 
-        for channel in channels:
-            channel_path = os.path.join(parent_path, channel)
-            if source_dir[-1] == '/':
-                save_img_channel_path = str.replace(channel_path, source_dir[:-1], os.path.join(save_dir_path, 'images'))
-            else:
-                save_img_channel_path = str.replace(channel_path, source_dir, os.path.join(save_dir_path, 'images'))
+def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
+    global EXCLUDED_DIR_COUNTER
+    shutil.rmtree(save_dir_name, ignore_errors=True)
 
+    for patient in tqdm(os.listdir(source_dir)):
+        patient_path = os.path.join(source_dir, patient)
 
-            channel_subdirs_names = [k for k in os.listdir(channel_path) if os.path.isdir(os.path.join(channel_path, k))]
-            if len(channel_subdirs_names) > 1:
-                filtered_channel_subdirs_names = [d for d in channel_subdirs_names if DIR_FILTER_PREFIX in d or
-                                                  d == DIR_FILTER_NAME]
-            else:
-                filtered_channel_subdirs_names = channel_subdirs_names
-
-            if len(filtered_channel_subdirs_names) != 1:
-                pt = str.replace(channel_path, "D:\Универы\ИТМО\Thesis\MRI scans\data\BurtsevLab_data_cleaned\\", "")
-                print(f'{pt} contains {len(filtered_channel_subdirs_names)} suitable dirs!')
-                if len(filtered_channel_subdirs_names) == 0:
-                    continue
-
-            #assert len(filtered_channel_subdirs_names) == 1
-            ch_sbdir = filtered_channel_subdirs_names[0]
-            ch_sbdir_path = os.path.join(channel_path, ch_sbdir)
-
-
-            files_names = os.listdir(ch_sbdir_path)
-
-            #if len(files_names) > 0 and check_files_format(files_names, ['.dcm', msk_ext]):
-            if len(files_names) > 0:
-                files_names = [f_n for f_n in files_names if f_n.endswith('.dcm') or f_n.endswith(msk_ext)]
-                non_zero_msk_counter = 0
-                mask_fs = []
-                img_files = []
-                for i in range(len(files_names)):
-                    msk_shape = None
-                    file_name = files_names[i]
-                    file_path = os.path.join(ch_sbdir_path, file_name)
-                    if file_name.endswith(msk_ext):
-                        mask_fs.append(imageio.imread(file_path))
-                        non_zero_msk_counter += 1
-                        msk_shape = mask_fs[-1].shape
-                        continue
-
-                    try:
-                        img_files.append(pydicom.dcmread(os.path.join(ch_sbdir_path, file_name)).pixel_array)
-                    except NotImplementedError as e:
-                        pt = str.replace(os.path.join(ch_sbdir_path, file_name), "D:\Универы\ИТМО\Thesis\MRI scans\data\BurtsevLab_data_cleaned\\", "")
-                        print(f'{pt} gives "{e}"!')
-                        global EXCLUDED_DIRS
-                        EXCLUDED_DIRS += 1
-                        continue
-                    msk_shape = img_files[-1].shape if msk_shape is None else msk_shape
-
-
-def open_and_write_files_to_parse(files_gen, source_dir, save_dir_path, msk_ext='.png'):
-    global EXCLUDED_DIRS
-    for patient_dir, channels in files_gen:
-        masks = {}
-        channels_imgs = {}
-        patient_img_shape = None
-        indices_to_exclude = set()
-
-        channel_fail = False
-        for channel in channels:
-            if channel_fail:
+        channels_to_write = dict()
+        labels_to_write = dict()
+        channel_inconsistency = False
+        for channel in os.listdir(patient_path):
+            if channel not in MRI_MODES or channel_inconsistency:
                 continue
-            channel_path = os.path.join(patient_dir, channel)
+            channel_path = os.path.join(patient_path, channel)
 
-            channel_subdirs_names = [k for k in os.listdir(channel_path) if os.path.isdir(os.path.join(channel_path, k))]
-            if len(channel_subdirs_names) > 1:
-                filtered_channel_subdirs_names = [d for d in channel_subdirs_names if DIR_FILTER_PREFIX in d or
-                                                  d == DIR_FILTER_NAME]
-            else:
-                filtered_channel_subdirs_names = channel_subdirs_names
+            modes = os.listdir(channel_path)
+            if len(modes) == 0:
+                print(f'{patient}/{channel} empty channel')
+                channel_inconsistency = True
+                break
+            if len(modes) > 1:
+                clean_modes = [m for m in modes if str.lower(MRI_AXE) in str.lower(m)]    # MRI_AXE is in mode name
+                if len(clean_modes) > 1:
+                    clean_modes = [m for m in modes if str.lower(m).startswith(str.lower(MRI_AXE).strip())]   # mode name starts from MRI_AXE
+                if len(clean_modes) != 1:
+                    print(f'{patient}/{channel}: {clean_modes}  {len(clean_modes)} CLEAN NODES')
+                    channel_inconsistency = True
+                    break
+                modes = clean_modes
+            mode = modes[0]
+            mode_path = os.path.join(channel_path, mode)
 
-            if len(filtered_channel_subdirs_names) != 1:
-                channel_fail = True
-                EXCLUDED_DIRS += 1
-                continue
+            dcm_names = []
+            mode_dcms = []
+            mode_lbls = []
+            f_counter = 1
 
-            assert len(filtered_channel_subdirs_names) == 1
-            ch_sbdir = filtered_channel_subdirs_names[0]
-            ch_sbdir_path = os.path.join(channel_path, ch_sbdir)
+            #print(sorted(os.listdir(mode_path)))
+            for f_name in sorted(os.listdir(mode_path)):
+                if not(str(f_counter)+'.' in f_name or str(f_counter-1)+'.png' in f_name):      # check for right files naming order inside mode
+                    print(f'{patient}/{channel}')
+                    print(f'{str(f_counter)}. expected to appear in name, got {f_name} instead')
+                    channel_inconsistency = True
+                    break
+                f_path = os.path.join(mode_path, f_name)
+                if f_name.endswith('.dcm'):
+                    mode_dcms.append(pydicom.read_file(f_path))
+                    dcm_names.append(f_name)
+                    f_counter += 1
 
-            files_names = os.listdir(ch_sbdir_path)
-            first_file_name = [f_n for f_n in files_names if f_n.endswith('.dcm') or f_n.endswith(msk_ext)][0]
-            if patient_img_shape is None:
-                patient_img_shape = pydicom.dcmread(os.path.join(ch_sbdir_path, first_file_name)).pixel_array.shape
-            else:
-                current_img_shape = pydicom.dcmread(os.path.join(ch_sbdir_path, first_file_name)).pixel_array.shape
-                if current_img_shape != patient_img_shape:
-                    channel_fail = True
-                    EXCLUDED_DIRS += 1
-                    continue
+                elif f_name.endswith('.png'):
+                    lbl = imageio.imread(f_path)
+                    while len(mode_lbls) < f_counter:
+                        mode_lbls.append(np.zeros(lbl.shape))
+                    mode_lbls.append(lbl)
 
+            if len(mode_lbls) > 0:                                          # pad nonzero lbls to fit scans shape
+                mode_lbls = mode_lbls[2:]
+                last_non_zero_lbl_shape = mode_lbls[-1].shape
+                while len(mode_lbls) < len(mode_dcms):
+                    mode_lbls.append(np.zeros(last_non_zero_lbl_shape))
 
-            #if len(files_names) > 0 and check_files_format(files_names, ['.dcm', msk_ext]):
-            if len(files_names) > 0:
-                files_names = [f_n for f_n in files_names if f_n.endswith('.dcm') or f_n.endswith(msk_ext)]
-                non_zero_msk_counter = 0
-                mask_fs = []
-                img_files = []
-                for i in range(len(files_names)):
-                    file_name = files_names[i]
-                    file_path = os.path.join(ch_sbdir_path, file_name)
-                    if file_name.endswith(msk_ext):
-                        mask = np.asarray(imageio.imread(file_path))
-                        pr_mask = preprocess_mask(mask)
-                        mask_fs.append(pr_mask)
-                        non_zero_msk_counter += 1
-                        continue
+            for i in range(1, len(mode_dcms)):                              # check z coordinate order in scans
+                if not mode_dcms[i][0x20, 0x32][2] > mode_dcms[i-1][0x20, 0x32][2]:
+                    print(f'{patient}/{channel}/{mode}: {dcm_names[i-1]} >= {dcm_names[i]}:  '
+                          f'{mode_dcms[i-1][0x20, 0x32][2]} >= {mode_dcms[i][0x20, 0x32][2]} ')
 
-                    try:
-                        img_files.append(pydicom.dcmread(os.path.join(ch_sbdir_path, file_name)).pixel_array)
-                    except NotImplementedError:
-                        indices_to_exclude.add(i)
-                    if i >= len(files_names)-1 or not files_names[i+1].endswith(msk_ext):
-                        mask_fs.append(0)
+            try:
+                mode_dcms_ndarray = np.asarray([m.pixel_array for m in mode_dcms])
+            except NotImplementedError:
+                print(f'{patient}/{channel} NotImplementedError')
+                channel_inconsistency=True
+                break
+            channels_to_write[channel] = mode_dcms_ndarray
 
-                if non_zero_msk_counter > 0:
-                    masks[channel] = mask_fs
+            if len(mode_lbls) > 0:
+                mode_lbls_ndarray = np.asarray(mode_lbls)
+                prepr_mode_lbls_ndarray = preprocess_labels(mode_lbls_ndarray, resize_size)
+                if prepr_mode_lbls_ndarray.max() > 0:
+                    labels_to_write[channel] = prepr_mode_lbls_ndarray
 
-                channels_imgs[channel] = img_files
-
-        if channel_fail:
+        if channel_inconsistency:
+            EXCLUDED_DIR_COUNTER += 1
             continue
-        min_img_number = 10000
-        for channel in channels:
-            channel_path = os.path.join(patient_dir, channel)
-            if source_dir[-1] == '/':
-                save_img_channel_path = str.replace(channel_path, source_dir[:-1],
-                                                    os.path.join(save_dir_path, 'images'))
-            else:
-                save_img_channel_path = str.replace(channel_path, source_dir, os.path.join(save_dir_path, 'images'))
-            shutil.rmtree(save_img_channel_path+'.nii', ignore_errors=True)
-            os.makedirs(os.path.split(save_img_channel_path)[0], exist_ok=True)
+        scans_numbers_to_take_set = set(ch_arr.shape[0] for ch_arr in channels_to_write.values())
+        if len(scans_numbers_to_take_set) != 1:
+            print(f'{patient}/{channel} scans_numbers are {scans_numbers_to_take_set}; mask number is {list(labels_to_write.values())[0].shape[0]}')
+            EXCLUDED_DIR_COUNTER += 1
+            continue
 
-            img_files = channels_imgs[channel]
-            channel_indices_to_exclude = [i for i in indices_to_exclude if i <= len(img_files)]
-            if len(channel_indices_to_exclude) > 0:
-                img_files = np.delete(img_files, tuple(channel_indices_to_exclude), axis=0)
-            min_img_number = min(min_img_number, np.asarray(img_files).shape[0])
-            img_files_t = np.asarray(img_files).transpose((1,2,0))
-            nib_imgs = nib.Nifti1Image(img_files_t, np.eye(4))
-            nib.save(nib_imgs, save_img_channel_path + '.nii')
+        if len(labels_to_write.keys()) == 0:
+            print(f'{patient}: No lbls detected')
+            EXCLUDED_DIR_COUNTER += 1
+            continue
 
-        if source_dir[-1] == '/':
-            save_msk_path = str.replace(patient_dir, source_dir[:-1], os.path.join(save_dir_path, 'masks'))
+
+        scans_number_to_take = scans_numbers_to_take_set.pop()
+        os.makedirs(os.path.join(save_dir_name, 'images', patient), exist_ok=True)
+        for channel_name in channels_to_write.keys():
+            ch_path_to_save = os.path.join(save_dir_name, 'images', patient, channel_name)+'.nii'
+            data_to_write = preprocess_channel(channels_to_write[channel_name][:scans_number_to_take, ...], resize_size).transpose(1,2,0)
+            nib_ch_to_save = nib.Nifti1Image(data_to_write, np.eye(4))
+            print(f'Saving channel shape {nib_ch_to_save.get_fdata().shape}')
+            if len(nib_ch_to_save.get_fdata().shape) != 3:
+                input()
+            nib.save(nib_ch_to_save, ch_path_to_save)
+
+        if len(labels_to_write.keys()) > 1:  # print info about labels
+            print('More than lbls detected')
+            for k in labels_to_write.keys():
+                print(f'{k}: {np.unique(labels_to_write[k], return_counts=True)}')
+
+        os.makedirs(os.path.join(save_dir_name, 'masks', patient), exist_ok=True)
+        lbl_name_to_take = list(labels_to_write.keys())[-1]
+        lbl_path_to_save = os.path.join(save_dir_name, 'masks', patient, lbl_name_to_take)+'_seg.nii'
+        nib_lbl_to_save = nib.Nifti1Image(labels_to_write[lbl_name_to_take].transpose(1,2,0), np.eye(4))
+        print(f'Saving msk shape {nib_lbl_to_save.get_fdata().shape}')
+        if len(nib_lbl_to_save.get_fdata().shape) != 3:
+            input()
+        nib.save(nib_lbl_to_save, lbl_path_to_save)
+
+        a = 1
+
+    print(f'{EXCLUDED_DIR_COUNTER} EXCLUDED DIRS')
+
+
+def preprocess_channel(channel_data, resize_size):
+    if resize_size is None:
+        return channel_data
+    resized_img = []
+    for i in range(channel_data.shape[0]):
+        img = channel_data[i]
+        resized_img.append(cv2.resize(img, tuple(min(img.shape[j], resize_size) for j in range(len(img.shape)))))
+
+    ndarray_img = np.asarray(resized_img)
+    ndarray_img = ndarray_img.transpose(0, 2, 1)
+    return ndarray_img
+
+def preprocess_labels(mask, resize_size):
+    if resize_size is None:
+        return np.where(mask == 2, 1, 0)
+
+    resized_mask = []
+    transf_msk = np.where(mask == 2, 1, 0)
+    for i in range(transf_msk.shape[0]):
+        cur_msk = transf_msk[i]
+        if cur_msk.max() == 0:
+            resized_mask.append(np.zeros(tuple(min(cur_msk.shape[j], resize_size) for j in range(len(cur_msk.shape)))))
         else:
-            save_msk_path = str.replace(patient_dir, source_dir, os.path.join(save_dir_path, 'masks'))
-        save_msk_path = os.path.join(save_msk_path, 'seg')
-        shutil.rmtree(os.path.split(save_msk_path)[0], ignore_errors=True)
-        time.sleep(0.3)
-        os.makedirs(os.path.split(save_msk_path)[0])
+            resized_mask.append(cv2.resize(cur_msk.astype('int16'), tuple(min(cur_msk.shape[j], resize_size) for j in range(len(cur_msk.shape))), cv2.INTER_LINEAR))
 
-        masks_to_take = []
-        masks_stack = list(masks.values())
-        for i in range(min_img_number):
-            cur_m_stack = [msks[i] for msks in masks_stack]
-            chech_for_zeros = np.asarray([isinstance(msk, numbers.Number) or msk.shape != MSK_SHAPE for msk in cur_m_stack])
-            if np.all(chech_for_zeros):
-                masks_to_take.append(np.zeros(MSK_SHAPE))
-            else:
-                masks_to_take.append(masks_stack[np.argmax(chech_for_zeros == False)][i])
-        msk_indices_to_exclude = [i for i in indices_to_exclude if i <= len(masks_to_take)]
-        if len(msk_indices_to_exclude) > 0:
-            masks_to_take = np.delete(masks_to_take, tuple(msk_indices_to_exclude), axis=0)
-        masks_to_take_t = np.asarray(masks_to_take).transpose((1,2,0))
-        nib_imgs = nib.Nifti1Image(np.asarray(masks_to_take_t), np.eye(4))
-        nib.save(nib_imgs, save_msk_path + '.nii')
-
-
-def check_files_format(file_names_to_ckeck, formats=('.dcm',)):
-    formats = list(formats)
-    for f in file_names_to_ckeck:
-        formats_check = False
-        for format in formats:
-            if f.endswith(format if '.' in format else'.' + format):
-                formats_check = True
-        if not formats_check:
-            return False
-    return True
-
-
-def preprocess_mask(mask):
-    return np.where(mask == 2, 1, 0)
+    resized_mask = np.asarray(resized_mask)
+    resized_mask = resized_mask[..., ::-1]
+    ndarray_mask = resized_mask.transpose(0, 2, 1)
+    return ndarray_mask
 
 
 if __name__ == '__main__':
     main()
+
