@@ -269,21 +269,19 @@ class BaseMaskDatasetIterator(Iterator):
         return batch_x
 
     def augment_batch(self, batch_x, batch_y):
-        print("performing Augmentations")
         shift_ratio = 0.03
 
-        flip_flags = np.random.randint(0, 2, size=batch_x.shape[0])  # vertical flips
+        flip_flags = np.random.randint(0, 2, size=batch_x.shape[0])             # vertical flips
 
         aug_batch_x = np.asarray(
             [np.flip(batch_x[i], 0) if flip_flags[i] == 1 else batch_x[i] for i in range(flip_flags.shape[0])])
-        aug_batch_y = np.asarray([np.flip(batch_y[..., i], 0) if flip_flags[i] == 1 else batch_y[..., i] for i in
-                                  range(flip_flags.shape[0])])
-
+        aug_batch_y = np.asarray(
+            [np.flip(batch_y[i], 0) if flip_flags[i] == 1 else batch_y[i] for i in range(flip_flags.shape[0])])
 
         # shifts
         shift_by_x = np.random.randint(-batch_x.shape[1] * shift_ratio, batch_x.shape[1] * shift_ratio,
                                        size=(batch_x.shape[0]))
-        shift_by_x = np.asarray(list(map(lambda x: (int(abs(x) - x), int(abs(x) + x)), shift_by_x)))
+        shift_by_x = np.asarray(list(map(lambda x: (int(abs(x) - x), int(abs(x)+x)), shift_by_x)))
 
         shift_by_y = np.random.randint(-batch_x.shape[2] * shift_ratio, batch_x.shape[2] * shift_ratio,
                                        size=(batch_x.shape[0]))
@@ -293,19 +291,21 @@ class BaseMaskDatasetIterator(Iterator):
         for i in range(aug_batch_x.shape[0]):
             img = aug_batch_x[i]
             img = np.pad(img, (shift_by_x[i], shift_by_y[i], (0, 0)), mode='constant')
-            new_img = img[shift_by_x[i][1]:img.shape[0] - shift_by_x[i][0],
-                      shift_by_y[i][1]:img.shape[1] - shift_by_y[i][0]]
+            new_img = img[shift_by_x[i][1]:img.shape[0]-shift_by_x[i][0],
+                      shift_by_y[i][1]:img.shape[1]-shift_by_y[i][0]]
             aug_batch_x_lst.append(new_img)
         aug_batch_x = np.asarray(aug_batch_x_lst)
 
         aug_batch_y_lst = []
         for i in range(aug_batch_y.shape[0]):
             msk = aug_batch_y[i]
-            msk = np.pad(msk, (shift_by_x[i], shift_by_y[i]), mode='constant')
+            msk = np.pad(msk, (shift_by_x[i], shift_by_y[i], (0, 0)), mode='constant')
             new_msk = msk[shift_by_x[i][1]:msk.shape[0] - shift_by_x[i][0],
                       shift_by_y[i][1]:msk.shape[1] - shift_by_y[i][0]]
             aug_batch_y_lst.append(new_msk)
         aug_batch_y = np.asarray(aug_batch_y_lst)
+
+        return aug_batch_x, aug_batch_y
 
     def next(self):
         with self.lock:

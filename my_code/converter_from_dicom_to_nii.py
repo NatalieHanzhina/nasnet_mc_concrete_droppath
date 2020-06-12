@@ -49,7 +49,7 @@ def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
     for patient in tqdm(os.listdir(source_dir)):
         patient_path = os.path.join(source_dir, patient)
 
-        channels_to_write = dict()
+        channels_dcm_to_write = dict()
         labels_to_write = dict()
         channel_inconsistency = False
         for channel in os.listdir(patient_path):
@@ -110,12 +110,12 @@ def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
                           f'{mode_dcms[i-1][0x20, 0x32][2]} >= {mode_dcms[i][0x20, 0x32][2]} ')
 
             try:
-                mode_dcms_ndarray = np.asarray([m.pixel_array for m in mode_dcms])
+                np.asarray([m.pixel_array for m in mode_dcms])
             except NotImplementedError:
                 print(f'{patient}/{channel} NotImplementedError')
                 channel_inconsistency=True
                 break
-            channels_to_write[channel] = mode_dcms_ndarray
+            channels_dcm_to_write[channel] = mode_dcms
 
             if len(mode_lbls) > 0:
                 mode_lbls_ndarray = np.asarray(mode_lbls)
@@ -126,11 +126,16 @@ def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
         if channel_inconsistency:
             EXCLUDED_DIR_COUNTER += 1
             continue
-        scans_numbers_to_take_set = set(ch_arr.shape[0] for ch_arr in channels_to_write.values())
+
+        scans_numbers_to_take_set = set(len(slice_list) for slice_list in channels_dcm_to_write.values())
         if len(scans_numbers_to_take_set) != 1:
-            print(f'{patient}/{channel} scans_numbers are {scans_numbers_to_take_set}; mask number is {list(labels_to_write.values())[0].shape[0]}')
-            EXCLUDED_DIR_COUNTER += 1
-            continue
+            channels_dcm_to_write_new, labels_to_write = match_scans(channels_dcm_to_write, labels_to_write)
+
+            if len(channels_dcm_to_write_new.keys()) < len(MRI_MODES) or len(labels_to_write.keys()) == 0:
+                print(f'{patient} channel or labels scans_numbers are inconsistent, could not fix')
+                EXCLUDED_DIR_COUNTER += 1
+                continue
+            channels_dcm_to_write = channels_dcm_to_write_new
 
         if len(labels_to_write.keys()) == 0:
             print(f'{patient}: No lbls detected')
@@ -140,9 +145,10 @@ def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
 
         scans_number_to_take = scans_numbers_to_take_set.pop()
         os.makedirs(os.path.join(save_dir_name, 'images', patient), exist_ok=True)
-        for channel_name in channels_to_write.keys():
+        for channel_name in channels_dcm_to_write.keys():
             ch_path_to_save = os.path.join(save_dir_name, 'images', patient, channel_name)+'.nii'
-            data_to_write = preprocess_channel(channels_to_write[channel_name][:scans_number_to_take, ...], resize_size).transpose(1,2,0)
+            scans_to_write = np.asarray(list(c.pixel_array for c in channels_dcm_to_write[channel_name][:scans_number_to_take]))
+            data_to_write = preprocess_channel(scans_to_write, resize_size).transpose(1,2,0)
             nib_ch_to_save = nib.Nifti1Image(data_to_write, np.eye(4))
             print(f'Saving channel shape {nib_ch_to_save.get_fdata().shape}')
             if len(nib_ch_to_save.get_fdata().shape) != 3:
@@ -157,7 +163,7 @@ def open_and_write_files_to_parse(source_dir, save_dir_name, resize_size):
         os.makedirs(os.path.join(save_dir_name, 'masks', patient), exist_ok=True)
         lbl_name_to_take = list(labels_to_write.keys())[-1]
         lbl_path_to_save = os.path.join(save_dir_name, 'masks', patient, lbl_name_to_take)+'_seg.nii'
-        nib_lbl_to_save = nib.Nifti1Image(labels_to_write[lbl_name_to_take].transpose(1,2,0), np.eye(4))
+        nib_lbl_to_save = nib.Nifti1Image(np.asarray(labels_to_write[lbl_name_to_take]).transpose(1,2,0), np.eye(4))
         print(f'Saving msk shape {nib_lbl_to_save.get_fdata().shape}')
         if len(nib_lbl_to_save.get_fdata().shape) != 3:
             input()
@@ -197,6 +203,55 @@ def preprocess_labels(mask, resize_size):
     resized_mask = resized_mask[..., ::-1]
     ndarray_mask = resized_mask.transpose(0, 2, 1)
     return ndarray_mask
+
+
+def match_scans(channels_to_match, labels_to_match):
+    labels_z_coords = {k: [] for k in labels_to_match.keys()}
+    for l_k in labels_to_match.keys():
+        for k in channels_to_match.keys():
+            if len(channels_to_match[k]) == len(labels_to_match[l_k]):
+                labels_z_coords[l_k] = [slice[0x20, 0x32][2] for slice in channels_to_match[k]]
+                break
+    min_scans_numbers_to_take = min(len(slice_list)for slice_list in channels_to_match.values())
+    z_coords_to_take = [float(dcm[0x20, 0x32][2]) for dcm in min(channels_to_match.items(), key=lambda x: len(x[1]))[1]]
+
+    channel_slices_to_take = dict()
+    channel_names_to_fill = list(channels_to_match.keys())
+    i = -1
+    while i < min_scans_numbers_to_take + 10:
+        i += 1
+        slices_to_take = {}
+        for k in channel_names_to_fill:
+            if len(channels_to_match[k]) > i and float(channels_to_match[k][i][0x20, 0x32][2]) in z_coords_to_take:
+                slices_to_take[k] = channels_to_match[k][i]
+
+        for k in slices_to_take:
+            if k not in channel_slices_to_take.keys():
+                channel_slices_to_take[k] = []
+            channel_slices_to_take[k].append(slices_to_take[k])
+        channel_names_to_fill = list(k for k in channel_names_to_fill if k not in channel_slices_to_take.keys() or
+                                     len(channel_slices_to_take[k]) < min_scans_numbers_to_take)
+
+    final_z_coords_to_take = [float(dcm[0x20, 0x32][2]) for dcm in min(channel_slices_to_take.items(), key=lambda x: len(x[1]))[1]]
+
+    final_channel_slices_to_take = {k: [] for k in channel_slices_to_take}
+    for channel in channel_slices_to_take.keys():
+        final_channel_lst = []
+        for i in range(len(channel_slices_to_take[channel])):
+            if float(channel_slices_to_take[channel][i][0x20, 0x32][2]) in final_z_coords_to_take:
+                final_channel_lst.append(channel_slices_to_take[channel][i])
+        final_channel_slices_to_take[channel] = final_channel_lst
+
+    final_labels_to_take = dict()
+    for l_k in labels_to_match.keys():
+        for i in range(len(labels_z_coords[l_k])):
+            l_coord = labels_z_coords[l_k][i]
+            if float(l_coord) in z_coords_to_take:
+                if l_k not in final_labels_to_take.keys():
+                    final_labels_to_take[l_k] = []
+                final_labels_to_take[l_k].append(labels_to_match[l_k][i])
+
+    return final_channel_slices_to_take, final_labels_to_take
 
 
 if __name__ == '__main__':
