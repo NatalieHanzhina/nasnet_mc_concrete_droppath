@@ -3,7 +3,7 @@ import random
 
 import nibabel as nib
 import numpy as np
-from datasets.base import BaseMaskDatasetIterator
+from datasets.base_with_augmentations import BaseMaskDatasetIterator
 from params import args
 from skimage import measure
 from skimage.filters import median
