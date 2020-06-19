@@ -254,8 +254,6 @@ class BaseMaskDatasetIterator(Iterator):
             nib_fs = nib.load(nii_gz_mask_path)
         else:
             nib_fs = nib.load(os.path.join(nii_gz_mask_path, os.listdir(nii_gz_mask_path)[0]))
-        print(nib_fs.get_fdata().shape)
-        input()
         return nib_fs.get_fdata()[..., id_in_archive]
 
     def transform_batch_x(self, batch_x):

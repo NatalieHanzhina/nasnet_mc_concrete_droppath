@@ -6,7 +6,7 @@ python train.py \
 --channels 4  \
 --num_workers 8  \
 --network xception_fpn_mc_dp \
---alias nii_nrh_ft_  \
+--alias nii_nrh_ft_aug_  \
 --freeze_till_layer input_1  \
 --loss double_head_loss \
 --optimizer adam  \
@@ -19,7 +19,7 @@ python train.py \
 --preprocessing_function caffe  \
 --images_dir /media/disk1/mkashirin/Brtsv_exp/images  \
 --masks_dir /media/disk1/mkashirin/Brtsv_exp/masks  \
---log_dir xception_fpn_mc_dp_nii_nrh_ft \
+--log_dir xception_fpn_mc_dp_nii_nrh_ft_aug \
 --weights "nn_models/best_nii_xception_fpn_mc_dp.h5"
 
 #aggregation

@@ -108,6 +108,12 @@ def main():
                                                        Mean()(metrics['binary_crossentropy']), \
                                                        Mean()(metrics['hard_dice_coef_ch1']), \
                                                        Mean()(metrics['hard_dice_coef'])
+
+        loss_var, bce_var, hdc1_var, hdc_var = np.std(metrics[args.loss_function]), \
+                                                       np.std(metrics['binary_crossentropy']), \
+                                                       np.std(metrics['hard_dice_coef_ch1']), \
+                                                       np.std(metrics['hard_dice_coef'])
+
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'{weights[i]} evaluation results:')
         # print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
@@ -115,6 +121,12 @@ def main():
               f'binary_crossentropy: {bce_value:.4f}, '
               f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
               f'hard_dice_coef: {hdc_value:.4f}')
+        print('variances estimation')
+        print(f'{args.loss_function}: {loss_var:.4f}, '
+              f'binary_crossentropy: {bce_var:.4f}, '
+              f'hard_dice_coef_ch1: {hdc1_var:.4f}, '
+              f'hard_dice_coef: {hdc_var:.4f}')
+
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))

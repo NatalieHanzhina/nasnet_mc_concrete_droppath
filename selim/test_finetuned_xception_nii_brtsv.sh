@@ -11,4 +11,4 @@ python test.py \
 --out_channels 2 \
 --test_images_dir /media/disk1/mkashirin/Brtsv_exp_test/images \
 --test_masks_dir /media/disk1/mkashirin/Brtsv_exp_test/masks \
---models 2nd_epoch_nii_nrh_ft_xception_fpn.h5
+--models best_nii_nrh_ft_aug_xception_fpn.h5
