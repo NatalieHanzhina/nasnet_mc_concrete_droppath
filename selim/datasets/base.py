@@ -4,6 +4,7 @@ import time
 from abc import abstractmethod
 
 import cv2
+import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 from params import args
@@ -197,17 +198,16 @@ class BaseMaskDatasetIterator(Iterator):
         #return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         #print(f'transformed img shape: {t_x.shape}, init img shape: {batch_x.shape}')
-        #print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+        print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
         #print(f'transformed msk min: {np.min(t_y)}, max: {np.max(t_y)}, init msk min: {np.min(batch_y)}, max: {np.max(batch_y)}')
         #print(f'transformed msk shape: {t_y.shape}, init msk shape: {batch_y.shape}')
-
-
+        self.print_img(t_x, t_y)
         if self.preprocessing_function and t_x.shape[-1] == 3:
             preprocessed_t_x = imagenet_utils.preprocess_input(t_x, mode=self.preprocessing_function)
         else:
             preprocessed_t_x = t_x
-        #print(f'preprocessed transformed img min: {np.min(preprocessed_t_x)}, max: {np.max(preprocessed_t_x)}')
-        #input()
+        print(f'preprocessed transformed img min: {np.min(preprocessed_t_x)}, max: {np.max(preprocessed_t_x)}')
+        input()
         return preprocessed_t_x, t_y
 
     def read_img_from_nii_gz_archive(self, img_path, id_in_archive):
@@ -263,6 +263,18 @@ class BaseMaskDatasetIterator(Iterator):
             t_n_batch_x = batch_x[..., ::-1] - np.asarray((r_mean+r_mean)[:batch_x.shape[-1]])
             return t_n_batch_x
         return batch_x
+
+    def save_img(self, batch_x, batch_y):
+        for i in range(batch_x.shape[0]):
+            f, axarr = plt.subplots(2, 3)
+            axarr[0, 0].imshow(batch_x[i][..., 0])
+            axarr[0, 1].imshow(batch_x[i][..., 1])
+            axarr[0, 2].imshow(batch_x[i][..., 2])
+            axarr[1, 0].imshow(batch_x[i][..., 3])
+            axarr[1, 1].imshow(batch_y[i])
+
+            plt.savefig(f'debug_img/{i}.jpg')
+            plt.close(f)
 
     def next(self):
         with self.lock:

@@ -6,7 +6,7 @@ python test_with_dp.py \
 --channels 3 \
 --pretrained_weights None \
 --preprocessing_function caffe \
---network xception_fpn_mc \
---batch_size 3 \
+--network xception_fpn_mc_dp \
+--batch_size 2 \
 --out_channels 2 \
 --models best_xception_fpn_mc_dp.h5
