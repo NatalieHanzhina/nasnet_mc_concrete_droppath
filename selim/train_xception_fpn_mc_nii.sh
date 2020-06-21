@@ -6,7 +6,7 @@ python train.py \
 --channels 4 \
 --num_workers 8  \
 --network xception_fpn_mc \
---alias nii_ \
+--alias nii_dp=0.3 \
 --freeze_till_layer input_1  \
 --loss double_head_loss \
 --optimizer adam  \
