@@ -63,9 +63,15 @@ def main():
         print('Using full size images')
     if args.multi_gpu:
         with tf.device("/cpu:0"):
-            model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+            model = make_model(args.network,
+                               (None, None, args.channels),
+                               pretrained_weights=args.pretrained_weights,
+                               mc_dp=args.dropout_rate)
     else:
-        model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+        model = make_model(args.network,
+                           (None, None, args.channels),
+                           pretrained_weights=args.pretrained_weights,
+                           mc_dp=args.dropout_rate)
     if args.weights is None:
         print('No weights passed, training from scratch')
     else:
