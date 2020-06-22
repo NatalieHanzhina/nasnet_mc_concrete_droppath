@@ -106,6 +106,14 @@ def decoder_block_no_bn(input, filters, skip, block_name, activation='relu'):
     return x
 
 
+def decoder_block_no_bn_dp(input, filters, skip, block_name, activation='relu', dp_p=0.3):
+    x = UpSampling2D()(input)
+    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation, dp_p=dp_p)
+    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
+    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation, dp_p=dp_p)
+    return x
+
+
 
 def create_pyramid_features(C1, C2, C3, C4, C5, feature_size=256):
     P5 = Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='P5', kernel_initializer="he_normal")(C5)
@@ -364,10 +372,8 @@ def xception_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activ
             prediction_fpn_block_dp(P2, "P2", dp_p=dp_p),
         ]
     )
-    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
-    x = Dropout(dp_p)(x, training=True)
-    x = decoder_block_no_bn(x, 128, conv1, 'up4')
-    x = Dropout(dp_p)(x, training=True)
+    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation", dp_p=dp_p)
+    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4', dp_p=dp_p)
     x = UpSampling2D()(x)
     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1", dp_p=dp_p)
     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2", dp_p=dp_p)
