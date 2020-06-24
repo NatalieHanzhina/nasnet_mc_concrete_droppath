@@ -2,7 +2,7 @@
 from models.xception_padding1 import Xception
 from models.xception_padding_mc_dp_dropout import Xception_mc_dp_dropout
 from models.xception_padding_mc_dropout import Xception_mc_dropout
-from resnets import ResNet101, ResNet152, ResNet50
+from resnets import ResNet101, ResNet152, ResNet152_mc, ResNet50
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
 from tensorflow.keras.applications import DenseNet169
@@ -202,21 +202,17 @@ def resnet152_fpn_mc(input_shape, channels=1, p=0.3, activation="softmax"):
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
-            prediction_fpn_block(P5, "P5", (8, 8)),
-            prediction_fpn_block(P4, "P4", (4, 4)),
-            prediction_fpn_block(P3, "P3", (2, 2)),
-            prediction_fpn_block(P2, "P2"),
+            prediction_fpn_block_dp(P5, "P5", (8, 8)),
+            prediction_fpn_block_dp(P4, "P4", (4, 4)),
+            prediction_fpn_block_dp(P3, "P3", (2, 2)),
+            prediction_fpn_block_dp(P2, "P2"),
         ]
     )
-    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
-    x = Dropout(p)(x, training=True)
-    x = decoder_block_no_bn(x, 128, conv1, 'up4')
-    x = Dropout(p)(x, training=True)
+    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation")
+    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4')
     x = UpSampling2D()(x)
-    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
-    x = Dropout(p)(x, training=True)
-    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
-    x = Dropout(p)(x, training=True)
+    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1")
+    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2")
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
     model = Model(img_input, x)

@@ -27,7 +27,7 @@ def make_model(network, input_shape, pretrained_weights, mc_dp=0.3):
     elif network == 'xception_fpn':
         return xception_fpn(input_shape, channels=2, weights=pretrained_weights, activation="sigmoid")
     elif network == 'xception_fpn_mc':
-        return xception_fpn_mc(input_shape, channels=2, p=mc_dp, weights=pretrained_weights, activation="sigmoid")
+        return xception_fpn_mc(input_shape, channels=2, dp_p=mc_dp, weights=pretrained_weights, activation="sigmoid")
     elif network == 'xception_fpn_mc_dp':
         return xception_fpn_mc_dp(input_shape, channels=2, p=mc_dp, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet50_2':

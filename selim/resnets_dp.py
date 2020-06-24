@@ -17,7 +17,7 @@ class NetType(Enum):
     mc_dp = 'mc_dp'
 
 
-def ResNet_mc(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
+def ResNet(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
 
@@ -63,11 +63,11 @@ def ResNet_mc(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp
 
     x = keras.layers.ZeroPadding2D(padding=3, name="padding_conv1")(inputs)
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
-    x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     if net_type == NetType.mc:
         x = keras.layers.Dropout(dp_p)(x, training=True)
     elif net_type == NetType.mc_dp:
         x = keras.layers.Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
 
@@ -124,7 +124,7 @@ def ResNet18(inputs, blocks=None, include_top=True, classes=1000, *args, **kwarg
     if blocks is None:
         blocks = [2, 2, 2, 2]
 
-    return ResNet_mc(inputs, blocks, block=keras_resnet.blocks.basic_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, block=keras_resnet.blocks.basic_2d, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet34(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -156,7 +156,7 @@ def ResNet34(inputs, blocks=None, include_top=True, classes=1000, *args, **kwarg
     if blocks is None:
         blocks = [3, 4, 6, 3]
 
-    return ResNet_mc(inputs, blocks, block=keras_resnet.blocks.basic_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, block=keras_resnet.blocks.basic_2d, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet50(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -189,7 +189,7 @@ def ResNet50(inputs, blocks=None, include_top=True, classes=1000, *args, **kwarg
         blocks = [3, 4, 6, 3]
     numerical_names = [False, False, False, False]
 
-    return ResNet_mc(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -222,7 +222,7 @@ def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 4, 23, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_mc(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -255,8 +255,8 @@ def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 8, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_mc(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
-                     net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
 def ResNet152_mc(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -289,8 +289,8 @@ def ResNet152_mc(inputs, blocks=None, include_top=True, classes=1000, *args, **k
         blocks = [3, 8, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_mc(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
-                     net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
 
@@ -324,8 +324,8 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 24, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_mc(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d, include_top=include_top,
-                     net_type=NetType.pure, p=0.3, classes=classes, *args, **kwargs)
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
 import keras_resnet.layers
@@ -399,7 +399,7 @@ def basic_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False, str
     return f
 
 
-def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False, stride=None):
+def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, numerical_name=False, stride=None):
     """
     A two-dimensional bottleneck block.
 
@@ -411,6 +411,8 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
 
     :param kernel_size: size of the kernel
 
+    :param dp_p: float representing dropout rate
+
     :param numerical_name: if true, uses numbers to represent blocks instead of chars (ResNet{101, 152, 200})
 
     :param stride: int representing the stride used in the shortcut and the first conv layer, default derives stride from block id
@@ -419,7 +421,7 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
 
         >>> import keras_resnet.blocks
 
-        >>> bottleneck_2d(64)
+        >>> bottleneck_2d_dp(64)
     """
     if stride is None:
         if block != 0 or stage == 0:
@@ -442,19 +444,35 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
     def f(x):
         y = keras.layers.Conv2D(filters, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch2a".format(stage_char, block_char), **parameters)(x)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2a".format(stage_char, block_char))(y)
+        if net_type == NetType.mc:
+            y = keras.layers.Dropout(dp_p)(y, training=True)
+        elif net_type == NetType.mc_dp:
+            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
         y = keras.layers.Activation("relu", name="res{}{}_branch2a_relu".format(stage_char, block_char))(y)
 
         y = keras.layers.ZeroPadding2D(padding=1, name="padding{}{}_branch2b".format(stage_char, block_char))(y)
         y = keras.layers.Conv2D(filters, kernel_size, use_bias=False, name="res{}{}_branch2b".format(stage_char, block_char), **parameters)(y)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2b".format(stage_char, block_char))(y)
+        if net_type == NetType.mc:
+            y = keras.layers.Dropout(dp_p)(y, training=True)
+        elif net_type == NetType.mc_dp:
+            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
         y = keras.layers.Activation("relu", name="res{}{}_branch2b_relu".format(stage_char, block_char))(y)
 
         y = keras.layers.Conv2D(filters * 4, (1, 1), use_bias=False, name="res{}{}_branch2c".format(stage_char, block_char), **parameters)(y)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2c".format(stage_char, block_char))(y)
+        if net_type == NetType.mc:
+            y = keras.layers.Dropout(dp_p)(y, training=True)
+        elif net_type == NetType.mc_dp:
+            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
 
         if block == 0:
             shortcut = keras.layers.Conv2D(filters * 4, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch1".format(stage_char, block_char), **parameters)(x)
             shortcut = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch1".format(stage_char, block_char))(shortcut)
+            if net_type == NetType.mc:
+                y = keras.layers.Dropout(dp_p)(y, training=True)
+            elif net_type == NetType.mc_dp:
+                y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
         else:
             shortcut = x
 
