@@ -39,7 +39,7 @@ def main():
 
 
 
-    predictions_repetition = 50
+    predictions_repetition = 20
     model_without_dropout = False
     t0 = timeit.default_timer()
 
@@ -49,7 +49,10 @@ def main():
         if model_without_dropout:
             model = load_model_weights(w)
         else:
-            model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+            model = make_model(args.network,
+                               (None, None, args.channels),
+                               pretrained_weights=args.pretrained_weights,
+                               mc_dp=args.dropout_rate)
             print("Building model {} from weights {} ".format(args.network, w))
             model.load_weights(w)
         models.append(model)
