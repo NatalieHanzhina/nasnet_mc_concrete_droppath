@@ -7,9 +7,9 @@ def make_model(network, input_shape, pretrained_weights, mc_dp=0.3):
     elif network == 'resnet152_2':
         return resnet152_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet152_2_mc':
-        return resnet152_fpn_mc(input_shape, channels=2, activation="sigmoid")
+        return resnet152_fpn_mc(input_shape, channels=2, mc_dp=mc_dp, activation="sigmoid")
     elif network == 'resnet152_2_mc_dp':
-        return resnet152_fpn_mc_dp(input_shape, channels=2, activation="sigmoid")
+        return resnet152_fpn_mc_dp(input_shape, channels=2, mc_dp=mc_dp, activation="sigmoid")
     elif network == 'resnet101_2':
         return resnet101_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet50_2':
@@ -29,7 +29,7 @@ def make_model(network, input_shape, pretrained_weights, mc_dp=0.3):
     elif network == 'xception_fpn_mc':
         return xception_fpn_mc(input_shape, channels=2, dp_p=mc_dp, weights=pretrained_weights, activation="sigmoid")
     elif network == 'xception_fpn_mc_dp':
-        return xception_fpn_mc_dp(input_shape, channels=2, p=mc_dp, weights=pretrained_weights, activation="sigmoid")
+        return xception_fpn_mc_dp(input_shape, channels=2, dp_p=mc_dp, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet50_2':
         return resnet50_fpn(input_shape, channels=2, activation="sigmoid")
     else:

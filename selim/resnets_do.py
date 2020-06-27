@@ -12,12 +12,12 @@ from tensorflow import keras
 
 
 class NetType(Enum):
-    pure = 'pure',
+    vanilla = 'vanilla',
     mc = 'mc',
     mc_dp = 'mc_dp'
 
 
-def ResNet(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
+def ResNet(inputs, blocks, block, include_top=True, net_type=NetType.vanilla, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
 
@@ -77,7 +77,7 @@ def ResNet(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp_p=
 
     for stage_id, iterations in enumerate(blocks):
         for block_id in range(iterations):
-            x = block(features, stage_id, block_id, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
+            x = block(features, stage_id, block_id, dp_p=dp_p, net_type=net_type, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
 
         features *= 2
 
@@ -256,10 +256,10 @@ def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     numerical_names = [False, True, True, False]
 
     return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
+                  net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
-def ResNet152_mc(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
+def ResNet152_mc(inputs, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC dropout.
 
@@ -290,7 +290,41 @@ def ResNet152_mc(inputs, blocks=None, include_top=True, classes=1000, *args, **k
     numerical_names = [False, True, True, False]
 
     return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
+                  net_type=NetType.mc, dp_p=dp_p, classes=classes, *args, **kwargs)
+
+
+def ResNet152_mc_dp(inputs, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+    """
+    Constructs a `keras.models.Model` according to the ResNet152 specifications with MC DropPath dropout.
+
+    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
+
+    :param blocks: the network’s residual architecture
+
+    :param include_top: if true, includes classification layers
+
+    :param classes: number of classes to classify (include_top must be true)
+
+    :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
+
+    Usage:
+
+        >>> import keras_resnet.models
+
+        >>> shape, classes = (224, 224, 3), 1000
+
+        >>> x = keras.layers.Input(shape)
+
+        >>> model = keras_resnet.models.ResNet152(x, classes=classes)
+
+        >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
+    """
+    if blocks is None:
+        blocks = [3, 8, 36, 3]
+    numerical_names = [False, True, True, False]
+
+    return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+                  net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
 
 
 
@@ -325,7 +359,7 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     numerical_names = [False, True, True, False]
 
     return ResNet(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                  net_type=NetType.pure, dp_p=0.3, classes=classes, *args, **kwargs)
+                  net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
 import keras_resnet.layers
@@ -399,7 +433,7 @@ def basic_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False, str
     return f
 
 
-def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, numerical_name=False, stride=None):
+def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, net_type=NetType.mc, numerical_name=False, stride=None):
     """
     A two-dimensional bottleneck block.
 
