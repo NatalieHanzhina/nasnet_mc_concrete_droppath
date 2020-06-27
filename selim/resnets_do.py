@@ -373,7 +373,7 @@ def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, class
 
     donor_inputs = keras.layers.Input(inputs.shape)
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
-                               include_top=include_top, classes=classes, *args, **kwargs)
+                               *args, **kwargs)
     donor_model.load_weights(weights)
 
     transfer_wegihts_from_donor_model(model, donor_model, inputs.shape)
@@ -413,9 +413,14 @@ def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, cl
 
     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
                      net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
-    model.load_weights(weights)
-    return model
 
+    donor_inputs = keras.layers.Input(inputs.shape)
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
+                               *args, **kwargs)
+    donor_model.load_weights(weights)
+
+    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape)
+    return model
 
 
 def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
