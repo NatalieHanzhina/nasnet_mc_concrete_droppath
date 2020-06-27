@@ -96,7 +96,7 @@ def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla,
         return keras.models.Model(inputs=inputs, outputs=outputs, *args, **kwargs)
 
 
-def donor_ResNet(inputs, blocks, block, classes=1000, numerical_names=None, *args, **kwargs):
+def donor_ResNet(inputs, blocks, block, include_top=True, classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
 
@@ -142,10 +142,6 @@ def donor_ResNet(inputs, blocks, block, classes=1000, numerical_names=None, *arg
 
     x = keras.layers.ZeroPadding2D(padding=3, name="padding_conv1")(inputs)
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
-    if net_type == NetType.mc:
-        x = keras.layers.Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
-        x = keras.layers.Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
@@ -156,7 +152,7 @@ def donor_ResNet(inputs, blocks, block, classes=1000, numerical_names=None, *arg
 
     for stage_id, iterations in enumerate(blocks):
         for block_id in range(iterations):
-            x = block(features, stage_id, block_id, dp_p=dp_p, net_type=net_type, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
+            x = block(features, stage_id, block_id, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
 
         features *= 2
 
@@ -371,7 +367,7 @@ def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, class
     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
                       net_type=NetType.mc, dp_p=dp_p, classes=classes, *args, **kwargs)
 
-    donor_inputs = keras.layers.Input(inputs.shape)
+    donor_inputs = keras.Input(inputs.get_shape()[1:])
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
                                *args, **kwargs)
     donor_model.load_weights(weights)
@@ -414,7 +410,7 @@ def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, cl
     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
                      net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
 
-    donor_inputs = keras.layers.Input(inputs.shape)
+    donor_inputs = keras.layers.Input(inputs.shape[1:])
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
                                *args, **kwargs)
     donor_model.load_weights(weights)
