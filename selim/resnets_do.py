@@ -367,12 +367,12 @@ def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, class
     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
                       net_type=NetType.mc, dp_p=dp_p, classes=classes, *args, **kwargs)
 
-    donor_inputs = keras.Input(inputs.get_shape()[1:])
-    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
+    donor_inputs = keras.Input([*inputs.shape[1:-1], 3])
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
                                *args, **kwargs)
     donor_model.load_weights(weights)
 
-    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape)
+    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
     return model
 
 
@@ -410,12 +410,12 @@ def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, cl
     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
                      net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
 
-    donor_inputs = keras.layers.Input(inputs.shape[1:])
-    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp,
+    donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d6,
                                *args, **kwargs)
     donor_model.load_weights(weights)
 
-    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape)
+    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
     return model
 
 
@@ -467,7 +467,7 @@ def transfer_wegihts_from_donor_model(model, donor_model, input_shape):
         if 'dropout' in l.name and 'dropout' not in d_l.name:
             continue
         j += 1
-        if i == 0:
+        if i == 1:
             new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
             l.weights[0].assign(new_w)
         else:
@@ -703,9 +703,9 @@ def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, net_typ
             shortcut = keras.layers.Conv2D(filters * 4, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch1".format(stage_char, block_char), **parameters)(x)
             shortcut = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch1".format(stage_char, block_char))(shortcut)
             if net_type == NetType.mc:
-                y = keras.layers.Dropout(dp_p)(y, training=True)
+                shortcut = keras.layers.Dropout(dp_p)(shortcut, training=True)
             elif net_type == NetType.mc_dp:
-                y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
+                shortcut = keras.layers.Dropout(dp_p, noise_shape=(shortcut.shape[0], 1, 1, shortcut.shape[-1]))(shortcut, training=True)
         else:
             shortcut = x
 
