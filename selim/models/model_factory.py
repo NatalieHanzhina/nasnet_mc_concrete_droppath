@@ -7,9 +7,9 @@ def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
     elif network == 'resnet152_2':
         return resnet152_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet152_2_mc':
-        return resnet152_fpn_mc(input_shape, channels=2, dp_p=dp_p, activation="sigmoid")
+        return resnet152_fpn_mc(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet152_2_mc_dp':
-        return resnet152_fpn_mc_dp(input_shape, channels=2, dp_p=dp_p, activation="sigmoid")
+        return resnet152_fpn_mc_dp(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet101_2':
         return resnet101_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet50_2':
