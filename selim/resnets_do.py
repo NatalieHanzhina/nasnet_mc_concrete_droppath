@@ -411,7 +411,7 @@ def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, cl
                      net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
 
     donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
-    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d6,
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
                                *args, **kwargs)
     donor_model.load_weights(weights)
 
