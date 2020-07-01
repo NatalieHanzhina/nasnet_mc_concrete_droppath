@@ -64,11 +64,11 @@ def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla,
 
     x = keras.layers.ZeroPadding2D(padding=3, name="padding_conv1")(inputs)
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
+    x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     if net_type == NetType.mc:
         x = keras.layers.Dropout(dp_p)(x, training=True)
     elif net_type == NetType.mc_dp:
         x = keras.layers.Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
-    x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
 
@@ -78,7 +78,7 @@ def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla,
 
     for stage_id, iterations in enumerate(blocks):
         for block_id in range(iterations):
-            x = block(features, stage_id, block_id, dp_p=dp_p, net_type=net_type, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
+            x = block(features, stage_id, block_id, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
 
         features *= 2
 
@@ -460,14 +460,16 @@ def transfer_wegihts_from_donor_model(model, donor_model, input_shape):
     # model.set_weights(final_donor_weights)
 
     j = 1  # ignore input layers
-    for i, l in enumerate(model.layers[1:]):
+    for i, l in enumerate(model.layers):
+        if i < 1: # ignore input layers
+            continue
         if j >= len(donor_model.layers):
             break
         d_l = donor_model.layers[j]
         if 'dropout' in l.name and 'dropout' not in d_l.name:
             continue
         j += 1
-        if i == 1:
+        if i == 2:
             new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
             l.weights[0].assign(new_w)
         else:

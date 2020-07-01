@@ -1,6 +1,6 @@
+import gc
 import os
 
-import gc
 import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
