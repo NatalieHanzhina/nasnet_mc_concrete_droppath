@@ -35,7 +35,7 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.utils import get_file
-from tensorflow.python.keras.engine import get_source_inputs
+from tensorflow.keras.utils import get_source_inputs
 from tensorflow.keras import backend as K
 
 

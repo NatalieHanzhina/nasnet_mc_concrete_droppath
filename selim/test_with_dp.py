@@ -87,22 +87,30 @@ def main():
             counter +=1
             if counter > loop_stop:
                 break
-            predicts_x = []
-            for _ in range(predictions_repetition):
-                predicts_x.append(model.predict(x, verbose=0))
-            mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=0)
+            # old_predicts_x = []
+            x_repeated = np.repeat(x, predictions_repetition, axis=0)
+            predicts_x_repeated = model.predict(x_repeated, verbose=0)
+            predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
+
+            # for _ in range(predictions_repetition):
+            #     old_predicts_x.append(model.predict(x, verbose=0))
+            # old_mean_predicts = tf.math.reduce_mean(np.asarray(old_predicts_x), axis=0)
+            mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
 
-            #print('\n', mean_predicts.shape)
-            #print(np.asarray(predicts_x).shape, mean_predicts.shape, y.shape)
-            # input()
-            #print(f'{args.loss_function}: {loss(y, mean_predicts):.4f}, '
-            #      f'binary_crossentropy: {binary_crossentropy(y, mean_predicts):.4f}, '
-            #      f'hard_dice_coef_ch1: {hard_dice_coef_ch1(y, mean_predicts):.4f}, '
-            #      f'hard_dice_coef: {hard_dice_coef(y, mean_predicts):.4f}')
+            # metrics[args.loss_function].append(loss(y, old_mean_predicts).numpy())
+            # metrics['binary_crossentropy'].append(binary_crossentropy(y, old_mean_predicts).numpy())
+            # metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, old_mean_predicts).numpy())
+            # metrics['hard_dice_coef'].append(hard_dice_coef(y, old_mean_predicts).numpy())
+
+            # print(loss(y, old_mean_predicts).numpy(), loss(y, mean_predicts).numpy())
+            # print(binary_crossentropy(y, old_mean_predicts).numpy(), binary_crossentropy(y, mean_predicts).numpy())
+            # print(hard_dice_coef_ch1(y, old_mean_predicts).numpy(), hard_dice_coef_ch1(y, mean_predicts).numpy())
+            # print(hard_dice_coef(y, old_mean_predicts).numpy(), hard_dice_coef(y, mean_predicts).numpy())
+
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
