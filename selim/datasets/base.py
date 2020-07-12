@@ -58,6 +58,15 @@ class BaseMaskDatasetIterator(Iterator):
     def transform_mask(self, mask, image):
         raise NotImplementedError
 
+    def get_output_shape(self):
+        if self.crop_shape is not None and self.crop_shape != (None, None):
+            return (*self.crop_shape, os.listdir(self.image_paths[0]))
+        elif self.resize_shape is not None and self.resize_shape != (None, None):
+            return (*self.resize_shape, os.listdir(self.image_paths[0]))
+        else:
+            path_to_img = os.path.join(self.image_paths[0], os.listdir(self.image_paths[0])[0])
+            return (*np.asarray(nib.load(path_to_img).get_fdata())[..., 0].shape, len(os.listdir(self.image_paths[0])))
+
     def preprocess_mask(self, mask):
         if len(mask.shape) == 3:
             if mask.shape[2] != 3:

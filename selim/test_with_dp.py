@@ -82,15 +82,27 @@ def main():
                    'hard_dice_coef_ch1': [],
                    'hard_dice_coef': []}
         loop_stop = data_generator.__len__()
-        counter = 0
+
+        counter = -1
+        data_gen_len = data_generator.__len__()
+        pred_mc = []
+        pred_std_mc = np.zeros((data_gen_len, *data_generator.get_output_shape(), args.out_channels))
+        entropy_mc = np.zeros((data_gen_len, *data_generator.get_output_shape(), args.out_channels))
+        labels = []
         for x, y in tqdm(data_generator):
-            counter +=1
+            counter += 1
             if counter > loop_stop:
                 break
             # old_predicts_x = []
             x_repeated = np.repeat(x, predictions_repetition, axis=0)
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
+
+            predicts_x_ext = np.repeat(predicts_x[..., np.newaxis], 2, axis=-1)
+            predicts_x_ext[..., 1] = 1 - predicts_x_ext[..., 1]
+            pred_mc.append(tf.math.reduce_mean(predicts_x_ext, axis=1)[0])
+            pred_std_mc[counter] = np.sqrt(np.sum(np.var(predicts_x_ext, axis=1), axis=-1))
+            entropy_mc[counter] = -np.sum(pred_mc[counter] * np.log2(pred_mc[counter] + 1E-14), axis=-1)  # Numerical Stability
 
             # for _ in range(predictions_repetition):
             #     old_predicts_x.append(model.predict(x, verbose=0))
@@ -111,9 +123,16 @@ def main():
             # print(hard_dice_coef_ch1(y, old_mean_predicts).numpy(), hard_dice_coef_ch1(y, mean_predicts).numpy())
             # print(hard_dice_coef(y, old_mean_predicts).numpy(), hard_dice_coef(y, mean_predicts).numpy())
 
+            labels.append(*[y[i] for i in range(y.shape[0])])
+
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
+        mean_x_predicts = [p[..., 0] for p in pred_mc]
+        new_loss_value, new_bce_value, new_hdc1_value, new_hdc_value = Mean()(list(map(lambda a: loss(a[0], a[1]), zip(labels, mean_x_predicts)))), \
+                                                       Mean()(list(map(lambda a: binary_crossentropy(a[0], a[1]), zip(labels, mean_x_predicts)))), \
+                                                       Mean()(list(map(lambda a: hard_dice_coef_ch1(a[0], a[1]), zip(labels, mean_x_predicts)))), \
+                                                       Mean()(list(map(lambda a: hard_dice_coef(a[0], a[1]), zip(labels, mean_x_predicts))))
 
         #predicts, labels = tf.convert_to_tensor(np.asarray(predicts)), tf.convert_to_tensor(np.asarray(labels))
         loss_value, bce_value, hdc1_value, hdc_value = Mean()(metrics[args.loss_function]), \
@@ -121,10 +140,10 @@ def main():
                                                        Mean()(metrics['hard_dice_coef_ch1']), \
                                                        Mean()(metrics['hard_dice_coef'])
 
-        loss_var, bce_var, hdc1_var, hdc_var = np.std(metrics[args.loss_function]), \
-                                                       np.std(metrics['binary_crossentropy']), \
-                                                       np.std(metrics['hard_dice_coef_ch1']), \
-                                                       np.std(metrics['hard_dice_coef'])
+        # loss_var, bce_var, hdc1_var, hdc_var = np.std(metrics[args.loss_function]), \
+        #                                                np.std(metrics['binary_crossentropy']), \
+        #                                                np.std(metrics['hard_dice_coef_ch1']), \
+        #                                                np.std(metrics['hard_dice_coef'])
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'{weights[i]} evaluation results:')
@@ -133,11 +152,15 @@ def main():
               f'binary_crossentropy: {bce_value:.4f}, '
               f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
               f'hard_dice_coef: {hdc_value:.4f}')
+        print(f'new_{args.loss_function}: {new_loss_value:.4f}, '
+              f'new_binary_crossentropy: {new_bce_value:.4f}, '
+              f'new_hard_dice_coef_ch1: {new_hdc1_value:.4f}, '
+              f'new_hard_dice_coef: {new_hdc_value:.4f}')
         print('variances estimation')
-        print(f'{args.loss_function}: {loss_var:.4f}, '
-              f'binary_crossentropy: {bce_var:.4f}, '
-              f'hard_dice_coef_ch1: {hdc1_var:.4f}, '
-              f'hard_dice_coef: {hdc_var:.4f}')
+        # print(f'{args.loss_function}: {loss_var:.4f}, '
+        #       f'binary_crossentropy: {bce_var:.4f}, '
+        #       f'hard_dice_coef_ch1: {hdc1_var:.4f}, '
+        #       f'hard_dice_coef: {hdc_var:.4f}')
 
 
     elapsed = timeit.default_timer() - t0
