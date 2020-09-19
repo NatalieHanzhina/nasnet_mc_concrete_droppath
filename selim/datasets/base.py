@@ -207,16 +207,15 @@ class BaseMaskDatasetIterator(Iterator):
         #return self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         #print(f'transformed img shape: {t_x.shape}, init img shape: {batch_x.shape}')
-        print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+        #print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
         #print(f'transformed msk min: {np.min(t_y)}, max: {np.max(t_y)}, init msk min: {np.min(batch_y)}, max: {np.max(batch_y)}')
         #print(f'transformed msk shape: {t_y.shape}, init msk shape: {batch_y.shape}')
-        self.print_img(t_x, t_y)
         if self.preprocessing_function and t_x.shape[-1] == 3:
             preprocessed_t_x = imagenet_utils.preprocess_input(t_x, mode=self.preprocessing_function)
         else:
             preprocessed_t_x = t_x
-        print(f'preprocessed transformed img min: {np.min(preprocessed_t_x)}, max: {np.max(preprocessed_t_x)}')
-        input()
+        #print(f'preprocessed transformed img min: {np.min(preprocessed_t_x)}, max: {np.max(preprocessed_t_x)}')
+        #input()
         return preprocessed_t_x, t_y
 
     def read_img_from_nii_gz_archive(self, img_path, id_in_archive):

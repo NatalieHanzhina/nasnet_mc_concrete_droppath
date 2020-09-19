@@ -91,7 +91,7 @@ def main():
         labels = []
         for x, y in tqdm(data_generator):
             counter += 1
-            if counter > loop_stop:
+            if counter >= loop_stop:
                 break
             # old_predicts_x = []
             x_repeated = np.repeat(x, predictions_repetition, axis=0)

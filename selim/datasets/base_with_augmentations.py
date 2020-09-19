@@ -221,6 +221,7 @@ class BaseMaskDatasetIterator(Iterator):
             t_x, t_y = self.transform_batch_x(batch_x), self.transform_batch_y(batch_y)
         #print(f'transformed img shape: {t_x.shape}, init img shape: {batch_x.shape}')
         #print(f'transformed img min: {np.min(t_x)}, max: {np.max(t_x)}, init img min: {np.min(batch_x)}, max: {np.max(batch_x)}')
+
         #print(f'transformed msk min: {np.min(t_y)}, max: {np.max(t_y)}, init msk min: {np.min(batch_y)}, max: {np.max(batch_y)}')
         #self.save_img(t_x, t_y)
 
