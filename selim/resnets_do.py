@@ -6,16 +6,10 @@ keras_resnet.models._2d
 
 This module implements popular two-dimensional residual models.
 """
-from enum import Enum
 
 import tensorflow as tf
+from models import NetType
 from tensorflow import keras
-
-
-class NetType(Enum):
-    vanilla = 'vanilla',
-    mc = 'mc',
-    mc_dp = 'mc_dp'
 
 
 def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
@@ -334,7 +328,54 @@ def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
                      net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
+def ResNet152_do(inputs, weights, net_type, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+    """
+    Constructs a `keras.models.Model` according to the ResNet152 specifications with MC Dropout or MC dropfilter.
+
+    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
+
+    :param blocks: the network’s residual architecture
+
+    :param include_top: if true, includes classification layers
+
+    :param classes: number of classes to classify (include_top must be true)
+
+    :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
+
+    Usage:
+
+        >>> import keras_resnet.models
+
+        >>> shape, classes = (224, 224, 3), 1000
+
+        >>> x = keras.layers.Input(shape)
+
+        >>> model = keras_resnet.models.ResNet152(x, classes=classes)
+
+        >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
+    """
+    if blocks is None:
+        blocks = [3, 8, 36, 3]
+    numerical_names = [False, True, True, False]
+
+    model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+                     net_type=net_type, dp_p=dp_p, classes=classes, *args, **kwargs)
+
+    donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
+                               *args, **kwargs)
+    donor_model.load_weights(weights)
+
+    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
+    return model
+
+
 def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+    return ResNet152_do(inputs, weights, net_type=NetType.mc, blocks=blocks, include_top=include_top, dp_p=dp_p,
+                        classes=classes, *args, **kwargs)
+
+
+def ResNet152_mc_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC dropout.
 
@@ -376,8 +417,12 @@ def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, class
     return model
 
 
-
 def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+    return ResNet152_do(inputs, weights, net_type=NetType.mc_dp, blocks=blocks, include_top=include_top, dp_p=dp_p,
+                        classes=classes, *args, **kwargs)
+
+
+def ResNet152_mc_dp_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC DropPath dropout.
 

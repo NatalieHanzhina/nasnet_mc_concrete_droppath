@@ -1,4 +1,4 @@
-from models.unets import resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp, densenet_fpn, inception_resnet_v2_fpn
+from models.unets_do import resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp, densenet_fpn, inception_resnet_v2_fpn
 
 
 def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
