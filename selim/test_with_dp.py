@@ -56,7 +56,6 @@ def main():
             print("Building model {} from weights {} ".format(args.network, w))
             model.load_weights(w)
         models.append(model)
-    #os.makedirs(test_pred, exist_ok=True)
 
     #dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.labels_dir, args.channels, seed=args.seed)
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
@@ -86,8 +85,8 @@ def main():
         counter = -1
         data_gen_len = data_generator.__len__()
         pred_mc = []
-        pred_std_mc = np.zeros((data_gen_len, *data_generator.get_output_shape(), args.out_channels))
-        entropy_mc = np.zeros((data_gen_len, *data_generator.get_output_shape(), args.out_channels))
+        pred_std_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
+        entropy_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
         labels = []
         for x, y in tqdm(data_generator):
             counter += 1

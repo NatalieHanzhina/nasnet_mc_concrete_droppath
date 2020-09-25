@@ -278,6 +278,9 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
                                       pooling=pooling,
                                       classes=classes)
 
+    print(weights)
+    input()
+        
     # load weights
     if weights == 'imagenet' or (weights is not None and input_shape[-1] > 3):
         if include_top:

@@ -65,7 +65,13 @@ class BaseMaskDatasetIterator(Iterator):
             return (*self.resize_shape, os.listdir(self.image_paths[0]))
         else:
             path_to_img = os.path.join(self.image_paths[0], os.listdir(self.image_paths[0])[0])
-            return (*np.asarray(nib.load(path_to_img).get_fdata())[..., 0].shape, len(os.listdir(self.image_paths[0])))
+            img_shape = (*np.asarray(nib.load(path_to_img).get_fdata())[..., 0].shape, len(os.listdir(self.image_paths[0])))
+            x0, y0 = 0, 0
+            if (img_shape[1] % 32) != 0:
+                x0 = (32 - img_shape[1] % 32)
+            if (img_shape[0] % 32) != 0:
+                y0 = (32 - img_shape[0] % 32)
+            return (img_shape[0]+x0, img_shape[1]+y0, *img_shape[2:])
 
     def preprocess_mask(self, mask):
         if len(mask.shape) == 3:
