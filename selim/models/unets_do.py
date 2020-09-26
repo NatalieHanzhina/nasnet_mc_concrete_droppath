@@ -1,9 +1,9 @@
 
 from models.xception_padding1 import Xception
 from models.xception_padding_do import Xception_do
-from resnets import ResNet101, ResNet152, ResNet50
+from resnets import ResNet101, ResNet50
 # from resnets_do import ResNet152_mc, ResNet152_mc_dp
-from resnets_do import ResNet152_do
+from resnets_do import ResNet152, ResNet152_do
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
 from tensorflow.keras.applications import DenseNet169
@@ -12,8 +12,9 @@ from tensorflow.keras.utils import get_file
 
 from . import NetType
 
-resnet_filename = 'ResNet-{}-model.keras.h5'
-resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
+
+# resnet_filename = 'ResNet-{}-model.keras.h5'
+# resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
 
 
 def download_resnet_imagenet(v):
@@ -172,10 +173,8 @@ def prediction_fpn_block_do(x, name, upsample=None, net_type=NetType.mc, dp_p=0.
     return x
 
 
-def resnet152_fpn(input_shape, channels=1, activation="softmax"):
-    img_input = Input(input_shape)
-    resnet_base = ResNet152(img_input, include_top=True)
-    resnet_base.load_weights(download_resnet_imagenet("resnet152"))
+def resnet152_fpn(input_shape, channels=1, weights="imagenet", activation="softmax"):
+    resnet_base = ResNet152(input_shape, weights_to_load=weights, include_top=True)
     conv1 = resnet_base.get_layer("conv1_relu").output
     conv2 = resnet_base.get_layer("res2c_relu").output
     conv3 = resnet_base.get_layer("res3b7_relu").output
@@ -197,19 +196,19 @@ def resnet152_fpn(input_shape, channels=1, activation="softmax"):
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
-    model = Model(img_input, x)
+    model = Model(resnet_base.input, x)
     return model
 
 
 def resnet152_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    img_input = Input(input_shape)
-    if weights == 'imagenet':
-        weights_file = download_resnet_imagenet("resnet152")
-    elif weights is None:
-        weights_file = None
-    else:
-        raise NotImplementedError('Only imagenet weights can be loaded')
-    resnet_base = ResNet152_do(img_input, include_top=True, net_type=net_type, dp_p=dp_p, weights=weights_file)
+    # if weights == 'imagenet':
+    #     weights_file = download_resnet_imagenet("resnet152")
+    # elif weights is None:
+    #     weights_file = None
+    # else:
+    #     raise NotImplementedError('Only imagenet weights can be loaded')
+    resnet_base = ResNet152_do(input_shape=input_shape, include_top=True, net_type=net_type, dp_p=dp_p,
+                               weights_to_load=weights)
     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
     conv1 = resnet_base.get_layer("conv1_relu").output
     conv2 = resnet_base.get_layer("res2c_relu").output
@@ -232,7 +231,7 @@ def resnet152_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='image
     x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type)
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
-    model = Model(img_input, x)
+    model = Model(resnet_base.input, x)
     return model
 
 
@@ -240,74 +239,74 @@ def resnet152_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', acti
     return resnet152_fpn_do(input_shape, NetType.mc, channels, dp_p, weights, activation)
 
 
-def resnet152_fpn_mc_old(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    img_input = Input(input_shape)
-    if weights == 'imagenet':
-        weights_file = download_resnet_imagenet("resnet152")
-    else:
-        raise NotImplementedError('Only imagenet weights can be loaded')
-    resnet_base = ResNet152_mc(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
-    #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
-    conv1 = resnet_base.get_layer("conv1_relu").output
-    conv2 = resnet_base.get_layer("res2c_relu").output
-    conv3 = resnet_base.get_layer("res3b7_relu").output
-    conv4 = resnet_base.get_layer("res4b35_relu").output
-    conv5 = resnet_base.get_layer("res5c_relu").output
-    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
-    x = concatenate(
-        [
-            prediction_fpn_block_dp(P5, "P5", (8, 8)),
-            prediction_fpn_block_dp(P4, "P4", (4, 4)),
-            prediction_fpn_block_dp(P3, "P3", (2, 2)),
-            prediction_fpn_block_dp(P2, "P2"),
-        ]
-    )
-    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation")
-    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4')
-    x = UpSampling2D()(x)
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1")
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2")
-    x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
-    x = Activation(activation)(x)
-    model = Model(img_input, x)
-    return model
+# def resnet152_fpn_mc_old(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
+#     img_input = Input(input_shape)
+#     if weights == 'imagenet':
+#         weights_file = download_resnet_imagenet("resnet152")
+#     else:
+#         raise NotImplementedError('Only imagenet weights can be loaded')
+#     resnet_base = ResNet152_mc(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
+#     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
+#     conv1 = resnet_base.get_layer("conv1_relu").output
+#     conv2 = resnet_base.get_layer("res2c_relu").output
+#     conv3 = resnet_base.get_layer("res3b7_relu").output
+#     conv4 = resnet_base.get_layer("res4b35_relu").output
+#     conv5 = resnet_base.get_layer("res5c_relu").output
+#     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+#     x = concatenate(
+#         [
+#             prediction_fpn_block_dp(P5, "P5", (8, 8)),
+#             prediction_fpn_block_dp(P4, "P4", (4, 4)),
+#             prediction_fpn_block_dp(P3, "P3", (2, 2)),
+#             prediction_fpn_block_dp(P2, "P2"),
+#         ]
+#     )
+#     x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation")
+#     x = decoder_block_no_bn_dp(x, 128, conv1, 'up4')
+#     x = UpSampling2D()(x)
+#     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1")
+#     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2")
+#     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
+#     x = Activation(activation)(x)
+#     model = Model(img_input, x)
+#     return model
 
 
 def resnet152_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
     return resnet152_fpn_do(input_shape, NetType.mc, channels, dp_p, weights, activation)
 
 
-def resnet152_fpn_mc_dp_old(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    img_input = Input(input_shape)
-    if weights == 'imagenet':
-        weights_file = download_resnet_imagenet("resnet152")
-    else:
-        raise NotImplementedError('Only imagenet weights can be loaded')
-    resnet_base = ResNet152_mc_dp(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
-    #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
-    conv1 = resnet_base.get_layer("conv1_relu").output
-    conv2 = resnet_base.get_layer("res2c_relu").output
-    conv3 = resnet_base.get_layer("res3b7_relu").output
-    conv4 = resnet_base.get_layer("res4b35_relu").output
-    conv5 = resnet_base.get_layer("res5c_relu").output
-    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
-    x = concatenate(
-        [
-            prediction_fpn_block(P5, "P5", (8, 8)),
-            prediction_fpn_block(P4, "P4", (4, 4)),
-            prediction_fpn_block(P3, "P3", (2, 2)),
-            prediction_fpn_block(P2, "P2"),
-        ]
-    )
-    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation", net_type=NetType.mc_dp)
-    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4', net_type=NetType.mc_dp)
-    x = UpSampling2D()(x)
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1", net_type=NetType.mc_dp)
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2", net_type=NetType.mc_dp)
-    x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
-    x = Activation(activation)(x)
-    model = Model(img_input, x)
-    return model
+# def resnet152_fpn_mc_dp_old(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
+#     img_input = Input(input_shape)
+#     if weights == 'imagenet':
+#         weights_file = download_resnet_imagenet("resnet152")
+#     else:
+#         raise NotImplementedError('Only imagenet weights can be loaded')
+#     resnet_base = ResNet152_mc_dp(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
+#     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
+#     conv1 = resnet_base.get_layer("conv1_relu").output
+#     conv2 = resnet_base.get_layer("res2c_relu").output
+#     conv3 = resnet_base.get_layer("res3b7_relu").output
+#     conv4 = resnet_base.get_layer("res4b35_relu").output
+#     conv5 = resnet_base.get_layer("res5c_relu").output
+#     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+#     x = concatenate(
+#         [
+#             prediction_fpn_block(P5, "P5", (8, 8)),
+#             prediction_fpn_block(P4, "P4", (4, 4)),
+#             prediction_fpn_block(P3, "P3", (2, 2)),
+#             prediction_fpn_block(P2, "P2"),
+#         ]
+#     )
+#     x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation", net_type=NetType.mc_dp)
+#     x = decoder_block_no_bn_dp(x, 128, conv1, 'up4', net_type=NetType.mc_dp)
+#     x = UpSampling2D()(x)
+#     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1", net_type=NetType.mc_dp)
+#     x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2", net_type=NetType.mc_dp)
+#     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
+#     x = Activation(activation)(x)
+#     model = Model(img_input, x)
+#     return model
 
 
 def resnet50_fpn(input_shape, channels=1, activation="softmax"):

@@ -475,4 +475,4 @@ def get_donor_model(include_top=True, weights='imagenet',
 
 
 if __name__ == '__main__':
-    Xception(include_top=False, input_shape=(256, 256, 3)).summary()
+    Xception_mc_dp_dropout(include_top=False, input_shape=(256, 256, 3)).summary()

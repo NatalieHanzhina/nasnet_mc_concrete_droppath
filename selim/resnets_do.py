@@ -8,21 +8,56 @@ This module implements popular two-dimensional residual models.
 """
 
 import tensorflow as tf
+from keras_applications.imagenet_utils import _obtain_input_shape
 from models import NetType
 from tensorflow import keras
+from tensorflow.keras.utils import get_file
 
 
-def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
+resnet_filename = 'ResNet-{}-model.keras.h5'
+resnet_resource = 'https://github.com/fizyr/keras-models/releases/download/v0.0.1/{}'.format(resnet_filename)
+
+
+def download_resnet_imagenet(v):
+    v = int(v.replace('resnet', ''))
+
+    filename = resnet_filename.format(v)
+    resource = resnet_resource.format(v)
+    if v == 50:
+        checksum = '3e9f4e4f77bbe2c9bec13b53ee1c2319'
+    elif v == 101:
+        checksum = '05dc86924389e5b401a9ea0348a3213c'
+    elif v == 152:
+        checksum = '6ee11ef2b135592f8031058820bb9e71'
+
+    return get_file(
+        filename,
+        resource,
+        cache_subdir='models',
+        md5_hash=checksum
+    )
+
+
+def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=True, net_type=NetType.vanilla, dp_p=0.3,
+              classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
-
-    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
 
     :param blocks: the network’s residual architecture
 
     :param block: a residual block (e.g. an instance of `keras_resnet.blocks.basic_2d`)
 
+    :param input_tensor: optional Keras tensor (i.e. output of `layers.Input()`) to use as image input for the model.
+
+    :param input_shape: optional shape tuple.
+            It should have exactly 3 inputs channels,
+            and width and height should be no smaller than ??.
+
     :param include_top: if true, includes classification layers
+
+    :param net_type: indicates types of dropout to be used in network MC or MC DP
+
+    :param dp_p: dropout rate
 
     :param classes: number of classes to classify (include_top must be true)
 
@@ -44,14 +79,32 @@ def ResNet_do(inputs, blocks, block, include_top=True, net_type=NetType.vanilla,
 
         >>> block = keras_resnet.blocks.basic_2d
 
-        >>> model = keras_resnet.models.ResNet_mc(x, classes, blocks, block, classes=classes)
+        >>> model = keras_resnet.models.ResNet_do(x, classes, blocks, block, classes=classes)
 
         >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
     """
+
     if keras.backend.image_data_format() == "channels_last":
         axis = 3
     else:
         axis = 1
+
+    # Determine proper input shape
+    input_shape = _obtain_input_shape(input_shape,
+                                      default_size=299,
+                                      min_size=71,
+                                      data_format=keras.backend.image_data_format(),
+                                      require_flatten=False,
+                                      weights=None)  # weights=None to prevent input channels equality check
+
+    if input_tensor is None:
+        inputs = keras.layers.Input(shape=input_shape)
+    else:
+        if not keras.backend.is_keras_tensor(input_tensor):
+            inputs = keras.layers.Input(tensor=input_tensor, shape=input_shape)
+        else:
+            inputs = input_tensor
+
 
     if numerical_names is None:
         numerical_names = [True] * len(blocks)
@@ -294,7 +347,8 @@ def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
 
 
-def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
+def ResNet152(weights_to_load, input_tensor=None, input_shape=None, blocks=None, include_top=True, classes=1000,
+              *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications.
 
@@ -324,11 +378,19 @@ def ResNet152(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 8, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                     net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
+    model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
+                     block=bottleneck_2d_dp, include_top=include_top, net_type=NetType.vanilla,
+                     classes=classes, *args, **kwargs)
+    if weights_to_load == 'imagenet':
+        weights = download_resnet_imagenet("resnet152")
+    else:
+        weights = weights_to_load
+    model.load_weights(weights)
+    return model
 
 
-def ResNet152_do(inputs, weights, net_type, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+def ResNet152_do(weights_to_load, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, dp_p=0.3,
+                 classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC Dropout or MC dropfilter.
 
@@ -358,15 +420,21 @@ def ResNet152_do(inputs, weights, net_type, blocks=None, include_top=True, dp_p=
         blocks = [3, 8, 36, 3]
     numerical_names = [False, True, True, False]
 
-    model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                     net_type=net_type, dp_p=dp_p, classes=classes, *args, **kwargs)
+    model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
+                      block=bottleneck_2d_dp, include_top=include_top, net_type=net_type, dp_p=dp_p, classes=classes,
+                      *args, **kwargs)
 
-    donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
+    donor_inputs = keras.layers.Input([*input_shape[1:-1], 3])
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
                                *args, **kwargs)
+
+    if weights_to_load == 'imagenet':
+        weights = download_resnet_imagenet("resnet152")
+    else:
+        weights = weights_to_load
     donor_model.load_weights(weights)
 
-    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
+    transfer_wegihts_from_donor_model(model, donor_model, input_shape[1:])
     return model
 
 

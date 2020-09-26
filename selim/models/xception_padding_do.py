@@ -332,7 +332,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     # Create donor model
     if input_shape[-1] > 3 and weights is not None:
         input_shape1 = (*input_shape[:-1], 3)
-        donor_model = get_donor_model(include_top, weights, input_tensor=None,
+        donor_model = get_donor_model(include_top, input_tensor=None,
                                       input_shape=input_shape1,
                                       pooling=pooling,
                                       classes=classes)
@@ -405,10 +405,8 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     return model
 
 
-def get_donor_model(include_top=True, weights='imagenet',
-             input_tensor=None, input_shape=None,
-             pooling=None,
-             classes=1000):
+def get_donor_model(include_top=True, input_tensor=None,
+                    input_shape=None, pooling=None, classes=1000):
     input_shape = _obtain_input_shape(input_shape,
                                       default_size=299,
                                       min_size=71,
