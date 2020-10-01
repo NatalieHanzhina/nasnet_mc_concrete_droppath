@@ -31,6 +31,7 @@ def main():
     all_masks = []
 
     OUT_CHANNELS = args.out_channels
+    TF_FORCE_GPU_ALLOW_GROWTH = True
 
 
     gpus = tf.config.experimental.list_physical_devices('GPU')

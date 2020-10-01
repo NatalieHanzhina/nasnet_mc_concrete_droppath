@@ -129,6 +129,7 @@ def Xception_mc_dp_dropout(include_top=True, p=0.3, weights='imagenet',
     else:
         old_data_format = None
 
+
     # Determine proper input shape
     input_shape = _obtain_input_shape(input_shape,
                                       default_size=299,

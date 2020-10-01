@@ -389,7 +389,7 @@ def ResNet152(weights_to_load, input_tensor=None, input_shape=None, blocks=None,
     return model
 
 
-def ResNet152_do(weights_to_load, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, dp_p=0.3,
+def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, dp_p=0.3,
                  classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC Dropout or MC dropfilter.
@@ -424,17 +424,26 @@ def ResNet152_do(weights_to_load, net_type, input_tensor=None, input_shape=None,
                       block=bottleneck_2d_dp, include_top=include_top, net_type=net_type, dp_p=dp_p, classes=classes,
                       *args, **kwargs)
 
-    donor_inputs = keras.layers.Input([*input_shape[1:-1], 3])
+    donor_inputs = keras.layers.Input([*model.input.shape[1:-1], 3])
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
                                *args, **kwargs)
 
-    if weights_to_load == 'imagenet':
-        weights = download_resnet_imagenet("resnet152")
-    else:
-        weights = weights_to_load
-    donor_model.load_weights(weights)
+    print(weights)
+    input()
 
-    transfer_wegihts_from_donor_model(model, donor_model, input_shape[1:])
+    if weights == 'imagenet':
+        weights = download_resnet_imagenet("resnet152")
+
+    if weights is not None and input_shape[-1] > 3:
+        if input_shape[-1] > 3:
+            donor_model.load_weights(weights)
+            transfer_wegihts_from_donor_model(model, donor_model, input_shape[1:])
+        else:
+            model.load_weights(weights)
+    elif weights is not None:
+        model.load_weights(weights)
+    else:
+        print("No pretrained weights passed")
     return model
 
 
