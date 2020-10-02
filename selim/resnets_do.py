@@ -347,7 +347,7 @@ def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
 
 
-def ResNet152(weights_to_load, input_tensor=None, input_shape=None, blocks=None, include_top=True, classes=1000,
+def ResNet152(weights, input_tensor=None, input_shape=None, blocks=None, include_top=True, classes=1000,
               *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications.
@@ -381,12 +381,26 @@ def ResNet152(weights_to_load, input_tensor=None, input_shape=None, blocks=None,
     model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
                      block=bottleneck_2d_dp, include_top=include_top, net_type=NetType.vanilla,
                      classes=classes, *args, **kwargs)
-    if weights_to_load == 'imagenet':
+
+    donor_inputs = keras.layers.Input([*model.input.shape[1:-1], 3])
+    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
+                               *args, **kwargs)
+
+    if weights == 'imagenet':
         weights = download_resnet_imagenet("resnet152")
+
+    if weights is not None and input_shape[-1] > 3:
+        if input_shape[-1] > 3:
+            donor_model.load_weights(weights)
+            transfer_weights_from_donor_model(model, donor_model, input_shape[1:])
+        else:
+            model.load_weights(weights)
+    elif weights is not None:
+        model.load_weights(weights)
     else:
-        weights = weights_to_load
-    model.load_weights(weights)
+        print("No pretrained weights passed")
     return model
+
 
 
 def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, dp_p=0.3,
@@ -428,16 +442,13 @@ def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
                                *args, **kwargs)
 
-    print(weights)
-    input()
-
     if weights == 'imagenet':
         weights = download_resnet_imagenet("resnet152")
 
     if weights is not None and input_shape[-1] > 3:
         if input_shape[-1] > 3:
             donor_model.load_weights(weights)
-            transfer_wegihts_from_donor_model(model, donor_model, input_shape[1:])
+            transfer_weights_from_donor_model(model, donor_model, input_shape[1:])
         else:
             model.load_weights(weights)
     elif weights is not None:
@@ -575,7 +586,7 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
                      net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
 
 
-def transfer_wegihts_from_donor_model(model, donor_model, input_shape):
+def transfer_weights_from_donor_model(model, donor_model, input_shape):
     # donor_weights = donor_model.get_weights()
     # final_donor_weights = model.get_weights()[:1] + donor_weights[1:]
     # final_donor_weights[0] = np.concatenate((donor_weights[0], donor_weights[0][:, :, 0:input_shape[-1]-3, :]), axis=2)

@@ -174,7 +174,7 @@ def prediction_fpn_block_do(x, name, upsample=None, net_type=NetType.mc, dp_p=0.
 
 
 def resnet152_fpn(input_shape, channels=1, weights="imagenet", activation="softmax"):
-    resnet_base = ResNet152(input_shape, weights_to_load=weights, include_top=True)
+    resnet_base = ResNet152(input_shape=input_shape, weights=weights, include_top=True)
     conv1 = resnet_base.get_layer("conv1_relu").output
     conv2 = resnet_base.get_layer("res2c_relu").output
     conv3 = resnet_base.get_layer("res3b7_relu").output
