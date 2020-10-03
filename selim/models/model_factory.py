@@ -1,4 +1,4 @@
-from models.unets_do import resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp, densenet_fpn, inception_resnet_v2_fpn
+from models.unets_do import resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp, densenet_fpn, inception_resnet_v2_fpn
 
 
 def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
@@ -8,6 +8,8 @@ def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
         return resnet152_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet152_2_mc':
         return resnet152_fpn_mc(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
+    elif network == 'resnet152_2_mc_df':
+        return resnet152_fpn_mc_df(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet152_2_mc_dp':
         return resnet152_fpn_mc_dp(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet101_2':

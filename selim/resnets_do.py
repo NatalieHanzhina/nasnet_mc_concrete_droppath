@@ -38,7 +38,7 @@ def download_resnet_imagenet(v):
     )
 
 
-def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=True, net_type=NetType.vanilla, dp_p=0.3,
+def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=True, net_type=NetType.vanilla, do_p=0.3,
               classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
@@ -57,7 +57,7 @@ def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=Tr
 
     :param net_type: indicates types of dropout to be used in network MC or MC DP
 
-    :param dp_p: dropout rate
+    :param do_p: dropout rate
 
     :param classes: number of classes to classify (include_top must be true)
 
@@ -113,9 +113,9 @@ def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=Tr
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
     x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     if net_type == NetType.mc:
-        x = keras.layers.Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
-        x = keras.layers.Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = keras.layers.Dropout(do_p)(x, training=True)
+    elif net_type == NetType.mc_df:
+        x = keras.layers.Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
 
@@ -403,7 +403,7 @@ def ResNet152(weights, input_tensor=None, input_shape=None, blocks=None, include
 
 
 
-def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, dp_p=0.3,
+def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, do_p=0.3,
                  classes=1000, *args, **kwargs):
     """
     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC Dropout or MC dropfilter.
@@ -435,7 +435,7 @@ def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=
     numerical_names = [False, True, True, False]
 
     model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
-                      block=bottleneck_2d_dp, include_top=include_top, net_type=net_type, dp_p=dp_p, classes=classes,
+                      block=bottleneck_2d_dp, include_top=include_top, net_type=net_type, do_p=do_p, classes=classes,
                       *args, **kwargs)
 
     donor_inputs = keras.layers.Input([*model.input.shape[1:-1], 3])
@@ -458,98 +458,98 @@ def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=
     return model
 
 
-def ResNet152_mc(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
-    return ResNet152_do(inputs, weights, net_type=NetType.mc, blocks=blocks, include_top=include_top, dp_p=dp_p,
+def ResNet152_mc(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
+    return ResNet152_do(inputs, weights, net_type=NetType.mc, blocks=blocks, include_top=include_top, do_p=do_p,
                         classes=classes, *args, **kwargs)
 
 
-def ResNet152_mc_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
-    """
-    Constructs a `keras.models.Model` according to the ResNet152 specifications with MC dropout.
+# def ResNet152_mc_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
+#     """
+#     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC dropout.
+#
+#     :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
+#
+#     :param blocks: the network’s residual architecture
+#
+#     :param include_top: if true, includes classification layers
+#
+#     :param classes: number of classes to classify (include_top must be true)
+#
+#     :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
+#
+#     Usage:
+#
+#         >>> import keras_resnet.models
+#
+#         >>> shape, classes = (224, 224, 3), 1000
+#
+#         >>> x = keras.layers.Input(shape)
+#
+#         >>> model = keras_resnet.models.ResNet152(x, classes=classes)
+#
+#         >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
+#     """
+#     if blocks is None:
+#         blocks = [3, 8, 36, 3]
+#     numerical_names = [False, True, True, False]
+#
+#     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+#                       net_type=NetType.mc, do_p=dp_p, classes=classes, *args, **kwargs)
+#
+#     donor_inputs = keras.Input([*inputs.shape[1:-1], 3])
+#     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
+#                                *args, **kwargs)
+#     donor_model.load_weights(weights)
+#
+#     transfer_weights_from_donor_model(model, donor_model, inputs.shape[1:])
+#     return model
 
-    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
 
-    :param blocks: the network’s residual architecture
-
-    :param include_top: if true, includes classification layers
-
-    :param classes: number of classes to classify (include_top must be true)
-
-    :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
-
-    Usage:
-
-        >>> import keras_resnet.models
-
-        >>> shape, classes = (224, 224, 3), 1000
-
-        >>> x = keras.layers.Input(shape)
-
-        >>> model = keras_resnet.models.ResNet152(x, classes=classes)
-
-        >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
-    """
-    if blocks is None:
-        blocks = [3, 8, 36, 3]
-    numerical_names = [False, True, True, False]
-
-    model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                      net_type=NetType.mc, dp_p=dp_p, classes=classes, *args, **kwargs)
-
-    donor_inputs = keras.Input([*inputs.shape[1:-1], 3])
-    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
-                               *args, **kwargs)
-    donor_model.load_weights(weights)
-
-    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
-    return model
-
-
-def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
-    return ResNet152_do(inputs, weights, net_type=NetType.mc_dp, blocks=blocks, include_top=include_top, dp_p=dp_p,
+def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
+    return ResNet152_do(inputs, weights, net_type=NetType.mc_dp, blocks=blocks, include_top=include_top, do_p=do_p,
                         classes=classes, *args, **kwargs)
 
 
-def ResNet152_mc_dp_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
-    """
-    Constructs a `keras.models.Model` according to the ResNet152 specifications with MC DropPath dropout.
-
-    :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
-
-    :param blocks: the network’s residual architecture
-
-    :param include_top: if true, includes classification layers
-
-    :param classes: number of classes to classify (include_top must be true)
-
-    :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
-
-    Usage:
-
-        >>> import keras_resnet.models
-
-        >>> shape, classes = (224, 224, 3), 1000
-
-        >>> x = keras.layers.Input(shape)
-
-        >>> model = keras_resnet.models.ResNet152(x, classes=classes)
-
-        >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
-    """
-    if blocks is None:
-        blocks = [3, 8, 36, 3]
-    numerical_names = [False, True, True, False]
-
-    model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                     net_type=NetType.mc_dp, dp_p=dp_p, classes=classes, *args, **kwargs)
-
-    donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
-    donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
-                               *args, **kwargs)
-    donor_model.load_weights(weights)
-
-    transfer_wegihts_from_donor_model(model, donor_model, inputs.shape[1:])
-    return model
+# def ResNet152_mc_dp_old(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
+#     """
+#     Constructs a `keras.models.Model` according to the ResNet152 specifications with MC DropPath dropout.
+#
+#     :param inputs: input tensor (e.g. an instance of `keras.layers.Input`)
+#
+#     :param blocks: the network’s residual architecture
+#
+#     :param include_top: if true, includes classification layers
+#
+#     :param classes: number of classes to classify (include_top must be true)
+#
+#     :return model: ResNet model with encoding output (if `include_top=False`) or classification output (if `include_top=True`)
+#
+#     Usage:
+#
+#         >>> import keras_resnet.models
+#
+#         >>> shape, classes = (224, 224, 3), 1000
+#
+#         >>> x = keras.layers.Input(shape)
+#
+#         >>> model = keras_resnet.models.ResNet152(x, classes=classes)
+#
+#         >>> model.compile("adam", "categorical_crossentropy", ["accuracy"])
+#     """
+#     if blocks is None:
+#         blocks = [3, 8, 36, 3]
+#     numerical_names = [False, True, True, False]
+#
+#     model = ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+#                       net_type=NetType.mc_dp, do_p=do_p, classes=classes, *args, **kwargs)
+#
+#     donor_inputs = keras.layers.Input([*inputs.shape[1:-1], 3])
+#     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
+#                                *args, **kwargs)
+#     donor_model.load_weights(weights)
+#
+#     transfer_weights_from_donor_model(model, donor_model, inputs.shape[1:])
+#     return model
 
 
 def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -583,7 +583,7 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
     numerical_names = [False, True, True, False]
 
     return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
-                     net_type=NetType.vanilla, dp_p=0.3, classes=classes, *args, **kwargs)
+                     net_type=NetType.vanilla, do_p=0.3, classes=classes, *args, **kwargs)
 
 
 def transfer_weights_from_donor_model(model, donor_model, input_shape):
@@ -767,7 +767,7 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
     return f
 
 
-def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, net_type=NetType.mc, numerical_name=False, stride=None):
+def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_type=NetType.mc, numerical_name=False, stride=None):
     """
     A two-dimensional bottleneck block.
 
@@ -779,7 +779,7 @@ def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, net_typ
 
     :param kernel_size: size of the kernel
 
-    :param dp_p: float representing dropout rate
+    :param do_p: float representing dropout rate
 
     :param numerical_name: if true, uses numbers to represent blocks instead of chars (ResNet{101, 152, 200})
 
@@ -813,37 +813,38 @@ def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, dp_p=0.3, net_typ
         y = keras.layers.Conv2D(filters, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch2a".format(stage_char, block_char), **parameters)(x)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2a".format(stage_char, block_char))(y)
         if net_type == NetType.mc:
-            y = keras.layers.Dropout(dp_p)(y, training=True)
-        elif net_type == NetType.mc_dp:
-            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
+            y = keras.layers.Dropout(do_p)(y, training=True)
+        elif net_type == NetType.mc_df:
+            y = keras.layers.Dropout(do_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
         y = keras.layers.Activation("relu", name="res{}{}_branch2a_relu".format(stage_char, block_char))(y)
 
         y = keras.layers.ZeroPadding2D(padding=1, name="padding{}{}_branch2b".format(stage_char, block_char))(y)
         y = keras.layers.Conv2D(filters, kernel_size, use_bias=False, name="res{}{}_branch2b".format(stage_char, block_char), **parameters)(y)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2b".format(stage_char, block_char))(y)
         if net_type == NetType.mc:
-            y = keras.layers.Dropout(dp_p)(y, training=True)
-        elif net_type == NetType.mc_dp:
-            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
+            y = keras.layers.Dropout(do_p)(y, training=True)
+        elif net_type == NetType.mc_df:
+            y = keras.layers.Dropout(do_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
         y = keras.layers.Activation("relu", name="res{}{}_branch2b_relu".format(stage_char, block_char))(y)
 
         y = keras.layers.Conv2D(filters * 4, (1, 1), use_bias=False, name="res{}{}_branch2c".format(stage_char, block_char), **parameters)(y)
         y = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch2c".format(stage_char, block_char))(y)
         if net_type == NetType.mc:
-            y = keras.layers.Dropout(dp_p)(y, training=True)
-        elif net_type == NetType.mc_dp:
-            y = keras.layers.Dropout(dp_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
+            y = keras.layers.Dropout(do_p)(y, training=True)
+        elif net_type == NetType.mc_df:
+            y = keras.layers.Dropout(do_p, noise_shape=(y.shape[0], 1, 1, y.shape[-1]))(y, training=True)
 
         if block == 0:
             shortcut = keras.layers.Conv2D(filters * 4, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch1".format(stage_char, block_char), **parameters)(x)
             shortcut = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch1".format(stage_char, block_char))(shortcut)
             if net_type == NetType.mc:
-                shortcut = keras.layers.Dropout(dp_p)(shortcut, training=True)
-            elif net_type == NetType.mc_dp:
-                shortcut = keras.layers.Dropout(dp_p, noise_shape=(shortcut.shape[0], 1, 1, shortcut.shape[-1]))(shortcut, training=True)
+                shortcut = keras.layers.Dropout(do_p)(shortcut, training=True)
+            elif net_type == NetType.mc_df:
+                shortcut = keras.layers.Dropout(do_p, noise_shape=(shortcut.shape[0], 1, 1, shortcut.shape[-1]))(shortcut, training=True)
         else:
             shortcut = x
 
+        #keras.layers.Dropout() ???
         y = keras.layers.Add(name="res{}{}".format(stage_char, block_char))([y, shortcut])
         y = keras.layers.Activation("relu", name="res{}{}_relu".format(stage_char, block_char))(y)
 

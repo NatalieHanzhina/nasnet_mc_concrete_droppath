@@ -145,7 +145,7 @@ def main():
     validation_data = val_generator
     validation_steps = len(dataset.val_ids) //val_generator.batch_size
 
-    model.fit_generator(
+    model.fit(
             train_generator,
             steps_per_epoch=steps_per_epoch,
             epochs=args.epochs,
