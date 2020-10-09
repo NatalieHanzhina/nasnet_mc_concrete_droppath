@@ -5,7 +5,6 @@ from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
 from models.model_factory import make_model
 from params import args
-from tensorflow.keras.applications.imagenet_utils import preprocess_input
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
@@ -17,10 +16,8 @@ import tensorflow as tf
 
 tf.random.set_seed(1)
 import timeit
-import cv2
 from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
-from tensorflow.python.client import device_lib
 
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
 
@@ -63,7 +60,7 @@ if __name__ == '__main__':
                   optimizer=optimizer,
                   metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])
 
-        test_loss = model.evaluate_generator(data_generator, verbose=1)
+        test_loss = model.evaluate(data_generator, verbose=1)
         print(f'{weights[i]} evaluation results:')
         print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
         a = 1

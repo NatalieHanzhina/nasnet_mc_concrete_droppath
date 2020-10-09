@@ -311,7 +311,7 @@ def ResNet50(inputs, blocks=None, include_top=True, classes=1000, *args, **kwarg
         blocks = [3, 4, 6, 3]
     numerical_names = [False, False, False, False]
 
-    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_do, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwargs):
@@ -344,7 +344,7 @@ def ResNet101(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 4, 23, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top, classes=classes, *args, **kwargs)
+    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_do, include_top=include_top, classes=classes, *args, **kwargs)
 
 
 def ResNet152(weights, input_tensor=None, input_shape=None, blocks=None, include_top=True, classes=1000,
@@ -379,8 +379,8 @@ def ResNet152(weights, input_tensor=None, input_shape=None, blocks=None, include
     numerical_names = [False, True, True, False]
 
     model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
-                     block=bottleneck_2d_dp, include_top=include_top, net_type=NetType.vanilla,
-                     classes=classes, *args, **kwargs)
+                      block=bottleneck_2d_do, include_top=include_top, net_type=NetType.vanilla,
+                      classes=classes, *args, **kwargs)
 
     donor_inputs = keras.layers.Input([*model.input.shape[1:-1], 3])
     donor_model = donor_ResNet(donor_inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d,
@@ -435,7 +435,7 @@ def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=
     numerical_names = [False, True, True, False]
 
     model = ResNet_do(blocks, input_tensor=input_tensor, input_shape=input_shape, numerical_names=numerical_names,
-                      block=bottleneck_2d_dp, include_top=include_top, net_type=net_type, do_p=do_p, classes=classes,
+                      block=bottleneck_2d_do, include_top=include_top, net_type=net_type, do_p=do_p, classes=classes,
                       *args, **kwargs)
 
     donor_inputs = keras.layers.Input([*model.input.shape[1:-1], 3])
@@ -582,7 +582,7 @@ def ResNet200(inputs, blocks=None, include_top=True, classes=1000, *args, **kwar
         blocks = [3, 24, 36, 3]
     numerical_names = [False, True, True, False]
 
-    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_dp, include_top=include_top,
+    return ResNet_do(inputs, blocks, numerical_names=numerical_names, block=bottleneck_2d_do, include_top=include_top,
                      net_type=NetType.vanilla, do_p=0.3, classes=classes, *args, **kwargs)
 
 
@@ -720,7 +720,7 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
 
         >>> import keras_resnet.blocks
 
-        >>> bottleneck_2d_dp(64)
+        >>> bottleneck_2d_do(64)
     """
     if stride is None:
         if block != 0 or stage == 0:
@@ -767,7 +767,7 @@ def bottleneck_2d(filters, stage=0, block=0, kernel_size=3, numerical_name=False
     return f
 
 
-def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_type=NetType.mc, numerical_name=False, stride=None):
+def bottleneck_2d_do(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_type=NetType.mc, numerical_name=False, stride=None):
     """
     A two-dimensional bottleneck block.
 
@@ -789,7 +789,7 @@ def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_typ
 
         >>> import keras_resnet.blocks
 
-        >>> bottleneck_2d_dp(64)
+        >>> bottleneck_2d_do(64)
     """
     if stride is None:
         if block != 0 or stage == 0:
@@ -844,7 +844,12 @@ def bottleneck_2d_dp(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_typ
         else:
             shortcut = x
 
-        #keras.layers.Dropout() ???
+        if net_type == NetType.mc_dp:
+            if tf.random.uniform(shape=()).numpy() >= 0.5:
+                shortcut = keras.layers.Dropout(do_p, noise_shape=[1 for _ in range(len(shortcut.shape))])(shortcut, training=True)
+            else:
+                y = keras.layers.Dropout(do_p, noise_shape=[1 for _ in range(len(y.shape))])(y, training=True)
+
         y = keras.layers.Add(name="res{}{}".format(stage_char, block_char))([y, shortcut])
         y = keras.layers.Activation("relu", name="res{}{}_relu".format(stage_char, block_char))(y)
 

@@ -120,6 +120,8 @@ def decoder_block_no_bn_do(input, filters, skip, block_name, activation='relu', 
     x = UpSampling2D()(input)
     x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation,
                      net_type=net_type, dp_p=dp_p)
+    # if net_type==NetType.mc_dp:
+    #     Dropout() ???
     x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
     x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation,
                      net_type=net_type, dp_p=dp_p)
@@ -210,10 +212,20 @@ def resnet152_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='image
                                weights=weights)
     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
     conv1 = resnet_base.get_layer("conv1_relu").output
+    if net_type == NetType.mc_dp:
+        conv1 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv1.shape))])(conv1, training=True)
     conv2 = resnet_base.get_layer("res2c_relu").output
+    if net_type == NetType.mc_dp:
+        conv2 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv2.shape))])(conv2, training=True)
     conv3 = resnet_base.get_layer("res3b7_relu").output
+    if net_type == NetType.mc_dp:
+        conv3 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv3.shape))])(conv3, training=True)
     conv4 = resnet_base.get_layer("res4b35_relu").output
+    if net_type == NetType.mc_dp:
+        conv4 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv4.shape))])(conv4, training=True)
     conv5 = resnet_base.get_layer("res5c_relu").output
+    if net_type == NetType.mc_dp:
+        conv5 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv5.shape))])(conv5, training=True)
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
