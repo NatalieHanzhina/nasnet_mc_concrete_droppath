@@ -208,9 +208,11 @@ def resnet152_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='image
     #     weights_file = None
     # else:
     #     raise NotImplementedError('Only imagenet weights can be loaded')
+
+
+    #print(net_type, '--------')
     resnet_base = ResNet152_do(input_shape=input_shape, include_top=True, net_type=net_type, do_p=do_p,
                                weights=weights)
-    #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
     conv1 = resnet_base.get_layer("conv1_relu").output
     if net_type == NetType.mc_dp:
         conv1 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv1.shape))])(conv1, training=True)

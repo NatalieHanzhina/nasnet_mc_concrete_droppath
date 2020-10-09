@@ -125,7 +125,7 @@ def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=Tr
 
     for stage_id, iterations in enumerate(blocks):
         for block_id in range(iterations):
-            x = block(features, stage_id, block_id, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
+            x = block(features, stage_id, block_id, do_p=do_p, net_type=net_type, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
 
         features *= 2
 
@@ -838,13 +838,16 @@ def bottleneck_2d_do(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_typ
             shortcut = keras.layers.Conv2D(filters * 4, (1, 1), strides=stride, use_bias=False, name="res{}{}_branch1".format(stage_char, block_char), **parameters)(x)
             shortcut = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn{}{}_branch1".format(stage_char, block_char))(shortcut)
             if net_type == NetType.mc:
+                #print('MC____________')
                 shortcut = keras.layers.Dropout(do_p)(shortcut, training=True)
             elif net_type == NetType.mc_df:
+                #print('MC_DF___________')
                 shortcut = keras.layers.Dropout(do_p, noise_shape=(shortcut.shape[0], 1, 1, shortcut.shape[-1]))(shortcut, training=True)
         else:
             shortcut = x
 
         if net_type == NetType.mc_dp:
+            #print('MC_DP___________')
             if tf.random.uniform(shape=()).numpy() >= 0.5:
                 shortcut = keras.layers.Dropout(do_p, noise_shape=[1 for _ in range(len(shortcut.shape))])(shortcut, training=True)
             else:

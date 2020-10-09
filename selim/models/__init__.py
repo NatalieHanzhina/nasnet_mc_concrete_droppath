@@ -6,3 +6,4 @@ class NetType(Enum):
     mc = 'mc',
     mc_dp = 'mc_dp',
     mc_df = 'mc_df'
+
