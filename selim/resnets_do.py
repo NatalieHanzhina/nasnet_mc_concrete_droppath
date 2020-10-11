@@ -105,7 +105,6 @@ def ResNet_do(blocks, block, input_tensor=None, input_shape=None, include_top=Tr
         else:
             inputs = input_tensor
 
-
     if numerical_names is None:
         numerical_names = [True] * len(blocks)
 
@@ -200,7 +199,6 @@ def donor_ResNet(inputs, blocks, block, include_top=True, classes=1000, numerica
     for stage_id, iterations in enumerate(blocks):
         for block_id in range(iterations):
             x = block(features, stage_id, block_id, numerical_name=(block_id > 0 and numerical_names[stage_id]))(x)
-
         features *= 2
 
         outputs.append(x)
@@ -402,7 +400,6 @@ def ResNet152(weights, input_tensor=None, input_shape=None, blocks=None, include
     return model
 
 
-
 def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=None, include_top=True, do_p=0.3,
                  classes=1000, *args, **kwargs):
     """
@@ -458,9 +455,9 @@ def ResNet152_do(weights, net_type, input_tensor=None, input_shape=None, blocks=
     return model
 
 
-def ResNet152_mc(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
-    return ResNet152_do(inputs, weights, net_type=NetType.mc, blocks=blocks, include_top=include_top, do_p=do_p,
-                        classes=classes, *args, **kwargs)
+# def ResNet152_mc(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
+#     return ResNet152_do(inputs, weights, net_type=NetType.mc, blocks=blocks, include_top=include_top, do_p=do_p,
+#                         classes=classes, *args, **kwargs)
 
 
 # def ResNet152_mc_old(inputs, weights, blocks=None, include_top=True, dp_p=0.3, classes=1000, *args, **kwargs):
@@ -505,9 +502,9 @@ def ResNet152_mc(inputs, weights, blocks=None, include_top=True, do_p=0.3, class
 #     return model
 
 
-def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
-    return ResNet152_do(inputs, weights, net_type=NetType.mc_dp, blocks=blocks, include_top=include_top, do_p=do_p,
-                        classes=classes, *args, **kwargs)
+# def ResNet152_mc_dp(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
+#     return ResNet152_do(inputs, weights, net_type=NetType.mc_dp, blocks=blocks, include_top=include_top, do_p=do_p,
+#                         classes=classes, *args, **kwargs)
 
 
 # def ResNet152_mc_dp_old(inputs, weights, blocks=None, include_top=True, do_p=0.3, classes=1000, *args, **kwargs):
@@ -601,13 +598,15 @@ def transfer_weights_from_donor_model(model, donor_model, input_shape):
         d_l = donor_model.layers[j]
         if 'dropout' in l.name and 'dropout' not in d_l.name:
             continue
-        j += 1
+        assert l.output_shape[:-1] == d_l.output_shape[:-1] and \
+               tf.math.abs(l.output_shape[-1] - d_l.output_shape[-1]) < 2
         if i == 2:
             new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
             l.weights[0].assign(new_w)
         else:
             for (w, d_w) in zip(l.weights, d_l.weights):
                 w.assign(d_w)
+        j += 1
     assert j == len(donor_model.layers)
 
     # if weights != 'imagenet':
@@ -846,7 +845,7 @@ def bottleneck_2d_do(filters, stage=0, block=0, kernel_size=3, do_p=0.3, net_typ
         else:
             shortcut = x
 
-        if net_type == NetType.mc_dp:
+        if net_type == NetType.mc_dp and block != 0:
             #print('MC_DP___________')
             if tf.random.uniform(shape=()).numpy() >= 0.5:
                 shortcut = keras.layers.Dropout(do_p, noise_shape=[1 for _ in range(len(shortcut.shape))])(shortcut, training=True)
