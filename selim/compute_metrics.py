@@ -80,7 +80,6 @@ def main():
                    'FN': []}
 
         loop_stop = data_generator.__len__()
-        loop_stop = 5
         counter = -1
         pred_mc = []
         labels = []
@@ -148,16 +147,39 @@ def main():
         negative_predictive_value1 = np.mean([metrics['TN'][i] / (metrics['TN'][i] + metrics['FN'][i]+ld) for i in range(counter)])
 
 
+
+        sensitivity2 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FN']) + ld)
+        specificity2 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FP']) + ld)
+        accuracy2 = (np.mean(metrics['TP']) + np.mean(metrics['TN'])) / (
+                np.mean(metrics['TP']) + np.mean(metrics['FP']) + np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+        positive_likelihood_ratio2 = sensitivity2 / (1 - specificity2 + ld)
+
+        negative_likelihood_ratio2 = (1 - sensitivity2) / (specificity2 + ld)
+
+        positive_predictive_value2 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FP']) + ld)
+        negative_predictive_value2 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+
+
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'{weights[i]} evaluation results:')
         print(f'{args.loss_function}: {loss_value:.4f}\n'
-              f'sensitivity: {sensitivity1:.4f}\n'
-              f'specificity: {specificity1:.4f}\n'
+              f'sensitivity1: {sensitivity1:.4f}\n'
+              f'specificity1: {specificity1:.4f}\n'
               f'accuracy1: {accuracy1:.4f}\n'
-              f'LR+: {positive_likelihood_ratio1:.4f}\n'
-              f'LR-: {negative_likelihood_ratio1:.4f}\n'
-              f'PPV: {positive_predictive_value1:.4f}\n'
-              f'NPV: {negative_predictive_value1:.4f}\n')
+              f'LR+1: {positive_likelihood_ratio1:.4f}\n'
+              f'LR-1: {negative_likelihood_ratio1:.4f}\n'
+              f'PPV1: {positive_predictive_value1:.4f}\n'
+              f'NPV1: {negative_predictive_value1:.4f}\n')
+
+        print('\n\n'
+              f'sensitivity2: {sensitivity2:.4f}\n'
+              f'specificity2: {specificity2:.4f}\n'
+              f'accuracy2: {accuracy2:.4f}\n'
+              f'LR+2: {positive_likelihood_ratio2:.4f}\n'
+              f'LR-2: {negative_likelihood_ratio2:.4f}\n'
+              f'PPV2: {positive_predictive_value2:.4f}\n'
+              f'NPV2: {negative_predictive_value2:.4f}\n')
+
         # print(f'new_{args.loss_function}: {new_loss_value:.4f}, '
         #       f'new_binary_crossentropy: {new_bce_value:.4f}, '
         #       f'new_hard_dice_coef_ch1: {new_hdc1_value:.4f}, '
