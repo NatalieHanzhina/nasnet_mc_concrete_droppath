@@ -3,8 +3,9 @@ import random
 
 import nibabel as nib
 import numpy as np
-#from datasets.base_with_augmentations import BaseMaskDatasetIterator
+# from datasets.base_with_augmentations import BaseMaskDatasetIterator
 from datasets.base import BaseMaskDatasetIterator
+from datasets.base_for_metrics_computation import BaseMaskAndPathDatasetIterator  # remove
 from params import args
 from skimage import measure
 from skimage.filters import median
@@ -67,6 +68,26 @@ class DSB2018BinaryDataset:
     def test_generator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
         return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None,
                                   resize_shape, preprocessing_function, None, batch_size, False)
+
+    def metrics_compute_genetator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
+        return BaseMaskAndPathDatasetIterator(
+            self.images_dir,
+            self.masks_dir,
+            self.train_ids + self.val_ids,
+            self.train_paths + self.val_paths,
+            self.channels,
+            None,
+            resize_shape,
+            preprocessing_function,
+            None,
+            batch_size,
+            shuffle=False,
+            image_name_template="{id}", #.png",
+            mask_template="{id}", #.png",
+            label_template="{id}.tif",
+            padding=32,
+            seed=self.seed
+        )
 
     def generate_ids(self):
         all_ids = next(os.walk(self.images_dir))[2]

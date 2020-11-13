@@ -38,8 +38,6 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-
-
     predictions_repetition = 20
     model_without_dropout = False
     t0 = timeit.default_timer()
@@ -59,12 +57,12 @@ def main():
         models.append(model)
 
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
-    data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
+    data_generator = dataset.metrics_compute_genetator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 
-    for i, model in enumerate(models):
-        print(f'Working with {weights[i]} model')
+    for m_i, model in enumerate(models):
+        print(f'Working with {weights[m_i]} model')
         if args.multi_gpu:
             model = multi_gpu_model(model. len(gpus))
 
@@ -78,15 +76,17 @@ def main():
                    'FP': [],
                    'TN': [],
                    'FN': []}
+        data_paths = []
 
         loop_stop = data_generator.__len__()
         counter = -1
         pred_mc = []
         labels = []
-        for x, y in tqdm(data_generator):
+        for x, y, batch_paths in tqdm(data_generator):
             counter += 1
             if counter >= loop_stop:
                 break
+            data_paths = data_paths + [p.split('/')[-1] for p in batch_paths]
             x_repeated = np.repeat(x, predictions_repetition, axis=0)
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
             predicts_x = np.asarray(
@@ -118,12 +118,15 @@ def main():
             # print(hard_dice_coef_ch1(y, old_mean_predicts).numpy(), hard_dice_coef_ch1(y, mean_predicts).numpy())
             # print(hard_dice_coef(y, old_mean_predicts).numpy(), hard_dice_coef(y, mean_predicts).numpy())
 
-            labels.append(*[y[i] for i in range(y.shape[0])])
-
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
         loss_value = Mean()(metrics[args.loss_function])
+
+        data_paths_set = set(data_paths)
+        data_paths_indices = {x: [] for x in data_paths_set}
+        for j, p in enumerate(data_paths):
+            data_paths_indices[p].append(j)
 
         ld = 1e-8
 
@@ -133,39 +136,67 @@ def main():
         def compute_negative_likelihood_ratio(sensitivity, specificity):
             return (1 - sensitivity) / (specificity+ld)
 
-        sensitivity1 = np.mean([metrics['TP'][i]/(metrics['TP'][i]+metrics['FN'][i]+ld) for i in range(counter)])
-        specificity1 = np.mean([metrics['TN'][i]/(metrics['TN'][i]+metrics['FP'][i]+ld) for i in range(counter)])
-        accuracy1 = np.mean([(metrics['TP'][i] + metrics['TN'][i]) / (
-                    metrics['TP'][i] + metrics['FP'][i] + metrics['TN'][i] + metrics['FN'][i]+ld) for i in range(counter)])
+        patient_wise_metrics = {args.loss_function: [],
+                   'TP': [],
+                   'FP': [],
+                   'TN': [],
+                   'FN': []}
+
+        for k in data_paths_indices.keys():
+            patient_wise_metrics['TP'].append(np.mean([x for i, x in enumerate(metrics['TP']) if i in data_paths_indices[k]]))
+            patient_wise_metrics['FP'].append(np.mean([x for i, x in enumerate(metrics['FP']) if i in data_paths_indices[k]]))
+            patient_wise_metrics['TN'].append(np.mean([x for i, x in enumerate(metrics['TN']) if i in data_paths_indices[k]]))
+            patient_wise_metrics['FN'].append(np.mean([x for i, x in enumerate(metrics['FN']) if i in data_paths_indices[k]]))
+
+
+        sensitivity1 = np.mean([patient_wise_metrics['TP'][i]/(patient_wise_metrics['TP'][i]+patient_wise_metrics['FN'][i]+ld) for i in range(len(data_paths_indices.keys()))])
+        specificity1 = np.mean([patient_wise_metrics['TN'][i]/(patient_wise_metrics['TN'][i]+patient_wise_metrics['FP'][i]+ld) for i in range(len(data_paths_indices.keys()))])
+        accuracy1 = np.mean([(patient_wise_metrics['TP'][i] + patient_wise_metrics['TN'][i]) / (
+                    patient_wise_metrics['TP'][i] + patient_wise_metrics['FP'][i] + patient_wise_metrics['TN'][i] + patient_wise_metrics['FN'][i]+ld) for i in range(len(data_paths_indices.keys()))])
         positive_likelihood_ratio1 = np.mean(
-            [compute_positive_likelihood_ratio(metrics['TP'][i] / (metrics['TP'][i] + metrics['FN'][i]+ld),
-                                               metrics['TN'][i] / (metrics['TN'][i] + metrics['FP'][i]+ld)) for i in
-            range(counter)])
+            [compute_positive_likelihood_ratio(patient_wise_metrics['TP'][i] / (patient_wise_metrics['TP'][i] + patient_wise_metrics['FN'][i]+ld),
+                                               patient_wise_metrics['TN'][i] / (patient_wise_metrics['TN'][i] + patient_wise_metrics['FP'][i]+ld)) for i in
+            range(len(data_paths_indices.keys()))])
 
         negative_likelihood_ratio1 = np.mean(
-            [compute_negative_likelihood_ratio(metrics['TP'][i] / (metrics['TP'][i] + metrics['FN'][i]+ld),
-                                              metrics['TN'][i] / (metrics['TN'] + metrics['FP'][i]+ld)) for i in
-            range(counter)])
+            [compute_negative_likelihood_ratio(patient_wise_metrics['TP'][i] / (patient_wise_metrics['TP'][i] + patient_wise_metrics['FN'][i]+ld),
+                                              patient_wise_metrics['TN'][i] / (patient_wise_metrics['TN'] + patient_wise_metrics['FP'][i]+ld)) for i in
+            range(len(data_paths_indices.keys()))])
 
-        positive_predictive_value1 = np.mean([metrics['TP'][i] / (metrics['TP'][i] + metrics['FP'][i]+ld) for i in range(counter)])
-        negative_predictive_value1 = np.mean([metrics['TN'][i] / (metrics['TN'][i] + metrics['FN'][i]+ld) for i in range(counter)])
+        positive_predictive_value1 = np.mean([patient_wise_metrics['TP'][i] / (patient_wise_metrics['TP'][i] + patient_wise_metrics['FP'][i]+ld) for i in range(len(data_paths_indices.keys()))])
+        negative_predictive_value1 = np.mean([patient_wise_metrics['TN'][i] / (patient_wise_metrics['TN'][i] + patient_wise_metrics['FN'][i]+ld) for i in range(len(data_paths_indices.keys()))])
+        youdens_index1 = np.mean([patient_wise_metrics['TP'][i]/(patient_wise_metrics['TP'][i]+patient_wise_metrics['FN'][i]+ld) +
+                                 patient_wise_metrics['TN'][i]/(patient_wise_metrics['TN'][i]+patient_wise_metrics['FP'][i]+ld) - 1 for i in range(len(data_paths_indices.keys()))])
 
 
-
-        sensitivity2 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FN']) + ld)
-        specificity2 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FP']) + ld)
-        accuracy2 = (np.mean(metrics['TP']) + np.mean(metrics['TN'])) / (
-                np.mean(metrics['TP']) + np.mean(metrics['FP']) + np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+        sensitivity2 = np.mean(patient_wise_metrics['TP']) / (np.mean(patient_wise_metrics['TP']) + np.mean(patient_wise_metrics['FN']) + ld)
+        specificity2 = np.mean(patient_wise_metrics['TN']) / (np.mean(patient_wise_metrics['TN']) + np.mean(patient_wise_metrics['FP']) + ld)
+        accuracy2 = (np.mean(patient_wise_metrics['TP']) + np.mean(patient_wise_metrics['TN'])) / (
+                np.mean(patient_wise_metrics['TP']) + np.mean(patient_wise_metrics['FP']) + np.mean(patient_wise_metrics['TN']) + np.mean(patient_wise_metrics['FN']) + ld)
         positive_likelihood_ratio2 = sensitivity2 / (1 - specificity2 + ld)
 
         negative_likelihood_ratio2 = (1 - sensitivity2) / (specificity2 + ld)
 
-        positive_predictive_value2 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FP']) + ld)
-        negative_predictive_value2 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+        positive_predictive_value2 = np.mean(patient_wise_metrics['TP']) / (np.mean(patient_wise_metrics['TP']) + np.mean(patient_wise_metrics['FP']) + ld)
+        negative_predictive_value2 = np.mean(patient_wise_metrics['TN']) / (np.mean(patient_wise_metrics['TN']) + np.mean(patient_wise_metrics['FN']) + ld)
+        youdens_index2 = sensitivity2 + specificity2 - 1
+
+
+        sensitivity3 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FN']) + ld)
+        specificity3 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FP']) + ld)
+        accuracy3 = (np.mean(metrics['TP']) + np.mean(metrics['TN'])) / (
+                np.mean(metrics['TP']) + np.mean(metrics['FP']) + np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+        positive_likelihood_ratio3 = sensitivity3 / (1 - specificity3 + ld)
+
+        negative_likelihood_ratio3 = (1 - sensitivity3) / (specificity3 + ld)
+
+        positive_predictive_value3 = np.mean(metrics['TP']) / (np.mean(metrics['TP']) + np.mean(metrics['FP']) + ld)
+        negative_predictive_value3 = np.mean(metrics['TN']) / (np.mean(metrics['TN']) + np.mean(metrics['FN']) + ld)
+        youdens_index3 = sensitivity3 + specificity3 - 1
 
 
         print(f'Performed {predictions_repetition} repetitions per sample')
-        print(f'{weights[i]} evaluation results:')
+        print(f'{weights[m_i]} evaluation results:')
         print(f'{args.loss_function}: {loss_value:.4f}\n'
               f'sensitivity1: {sensitivity1:.4f}\n'
               f'specificity1: {specificity1:.4f}\n'
@@ -173,7 +204,8 @@ def main():
               f'LR+1: {positive_likelihood_ratio1:.4f}\n'
               f'LR-1: {negative_likelihood_ratio1:.4f}\n'
               f'PPV1: {positive_predictive_value1:.4f}\n'
-              f'NPV1: {negative_predictive_value1:.4f}\n')
+              f'NPV1: {negative_predictive_value1:.4f}\n'
+              f'(Youden’s index1: {youdens_index1:.4f}\n')
 
         print('\n\n'
               f'sensitivity2: {sensitivity2:.4f}\n'
@@ -182,7 +214,18 @@ def main():
               f'LR+2: {positive_likelihood_ratio2:.4f}\n'
               f'LR-2: {negative_likelihood_ratio2:.4f}\n'
               f'PPV2: {positive_predictive_value2:.4f}\n'
-              f'NPV2: {negative_predictive_value2:.4f}\n')
+              f'NPV2: {negative_predictive_value2:.4f}\n'
+              f'(Youden’s index2: {youdens_index2:.4f}\n')
+
+        print('\n\n'
+              f'sensitivity3: {sensitivity3:.4f}\n'
+              f'specificity3: {specificity3:.4f}\n'
+              f'accuracy3: {accuracy3:.4f}\n'
+              f'LR+3: {positive_likelihood_ratio3:.4f}\n'
+              f'LR-3: {negative_likelihood_ratio3:.4f}\n'
+              f'PPV3: {positive_predictive_value3:.4f}\n'
+              f'NPV3: {negative_predictive_value3:.4f}\n'
+              f'(Youden’s index3: {youdens_index3:.4f}\n')
 
         # print(f'new_{args.loss_function}: {new_loss_value:.4f}, '
         #       f'new_binary_crossentropy: {new_bce_value:.4f}, '
