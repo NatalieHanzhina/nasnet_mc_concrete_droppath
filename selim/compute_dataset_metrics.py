@@ -18,7 +18,6 @@ import tensorflow as tf
 
 tf.random.set_seed(1)
 import timeit
-from tensorflow.keras.metrics import Mean
 from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 
@@ -52,7 +51,7 @@ def main():
         models.append(model)
 
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
-    data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
+    data_generator = dataset.metrics_compute_genetator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 

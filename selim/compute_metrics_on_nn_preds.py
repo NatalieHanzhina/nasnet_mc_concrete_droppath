@@ -1,5 +1,6 @@
 import gc
 import os
+import pickle
 
 import numpy as np
 from datasets.dsb_binary import DSB2018BinaryDataset
@@ -80,12 +81,13 @@ def main():
 
         loop_stop = data_generator.__len__()
         counter = -1
-        pred_mc = []
-        labels = []
+        mean_pred_mc = []
+        y_s = []
         for x, y, batch_paths in tqdm(data_generator):
             counter += 1
             if counter >= loop_stop:
                 break
+            y_s.append(y)
             data_paths = data_paths + [p.split('/')[-1] for p in batch_paths]
             x_repeated = np.repeat(x, predictions_repetition, axis=0)
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
@@ -93,11 +95,9 @@ def main():
                 [predicts_x_repeated[j * predictions_repetition:(j + 1) * predictions_repetition, ...] for j in
                  range(x.shape[0])])
 
-            predicts_x_ext = np.repeat(predicts_x[..., np.newaxis], 2, axis=-1)
-            predicts_x_ext[..., 1] = 1 - predicts_x_ext[..., 1]
-            pred_mc.append(tf.math.reduce_mean(predicts_x_ext, axis=1)[0])
+            mean_predicts = tf.math.reduce_mean(predicts_x, axis=1)
+            mean_pred_mc.append(mean_predicts)
 
-            mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             #metrics['TP'].append(np.sum((np.round(mean_predicts[:, :, :, 0], 0) == 1) & (y[:, :, :, 0] > 0)))
             metrics['TP'].append(np.sum((np.where(mean_predicts[:, :, :, 0] > 0.4, 1, 0) == 1) & (y[:, :, :, 0] > 0)))
@@ -120,6 +120,10 @@ def main():
 
             del x, y, predicts_x, mean_predicts
             gc.collect()
+
+        with open('../predictions/pred_and_y.pikle', 'wb') as f:
+            pickle.dump(mean_pred_mc, f)
+            pickle.dump(y)
 
         loss_value = Mean()(metrics[args.loss_function])
 
