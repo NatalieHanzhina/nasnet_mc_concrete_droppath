@@ -39,7 +39,7 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    predictions_repetition = 20
+    predictions_repetition = 50
     model_without_dropout = False
     t0 = timeit.default_timer()
 
@@ -230,7 +230,7 @@ def main():
               f'LR-3: {negative_likelihood_ratio3:.4f}\n'
               f'PPV3: {positive_predictive_value3:.4f}\n'
               f'NPV3: {negative_predictive_value3:.4f}\n'
-              f'(Youden’s index3: {youdens_index3:.4f}\n')
+              f'Youden’s index3: {youdens_index3:.4f}\n')
 
         # print(f'new_{args.loss_function}: {new_loss_value:.4f}, '
         #       f'new_binary_crossentropy: {new_bce_value:.4f}, '
