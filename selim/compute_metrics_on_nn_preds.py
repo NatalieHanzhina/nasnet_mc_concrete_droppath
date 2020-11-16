@@ -73,6 +73,7 @@ def main():
                   metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])
 
         metrics = {args.loss_function: [],
+                   'hard_dice_coef': [],
                    'TP': [],
                    'FP': [],
                    'TN': [],
@@ -99,6 +100,7 @@ def main():
             mean_pred_mc.append(mean_predicts.numpy())
 
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
+            metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             #metrics['TP'].append(np.sum((np.round(mean_predicts[:, :, :, 0], 0) == 1) & (y[:, :, :, 0] > 0)))
             metrics['TP'].append(np.sum((np.where(mean_predicts[:, :, :, 0] > 0.32, 1, 0) == 1) & (y[:, :, :, 0] > 0)))
             #metrics['FP'].append(np.sum((np.round(mean_predicts[:, :, :, 0], 0) == 1) & (y[:, :, :, 0] == 0)))
@@ -126,7 +128,8 @@ def main():
             pickle.dump((mean_pred_mc, y_s), f)
         print('Saved!')
 
-        loss_value = Mean()(metrics[args.loss_function])
+        loss_value, hdc_value = Mean()(metrics[args.loss_function]), Mean()(metrics['hard_dice_coef'])
+
 
         data_paths_set = set(data_paths)
         data_paths_indices = {x: [] for x in data_paths_set}
@@ -202,7 +205,8 @@ def main():
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'{weights[m_i]} evaluation results:')
-        print(f'{args.loss_function}: {loss_value:.4f}\n\n'
+        print(f'{args.loss_function}: {loss_value:.4f}'
+              f'Dice coef: {hdc_value/100:.4f}\n\n'
               f'patient-wise sensitivity1: {patient_wise_sensitivity1:.4f}\n'
               f'patient-wise specificity1: {patient_wise_specificity1:.4f}\n'
               f'patient-wise accuracy1: {patient_wise_accuracy1:.4f}\n'
