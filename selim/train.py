@@ -127,7 +127,8 @@ def main():
         print("Setting learning rate to {}".format(steps[-1][0]))
         return steps[-1][0]
 
-    callbacks = [best_model, last_model]
+    #callbacks = [best_model, last_model]
+    callbacks = [best_model]
 
     if args.schedule is not None:
         steps = [(float(step.split(":")[0]), int(step.split(":")[1])) for step in args.schedule.split(",")]
