@@ -4,13 +4,11 @@ from params import args
 
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-from keras.preprocessing.image import img_to_array, load_img
-
 from keras.applications.imagenet_utils import preprocess_input
 
 from models.model_factory import make_model
 
-from os import path, mkdir, listdir
+from os import path, listdir
 import numpy as np
 
 np.random.seed(1)
@@ -33,8 +31,10 @@ all_masks = []
 
 OUT_CHANNELS = args.out_channels
 
+
 def preprocess_inputs(x):
     return preprocess_input(x, mode=args.preprocessing_function)
+
 
 if __name__ == '__main__':
     t0 = timeit.default_timer()

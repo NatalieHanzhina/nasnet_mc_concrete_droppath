@@ -2,7 +2,6 @@
 from models.xception_padding1 import Xception
 from models.xception_padding_do import Xception_do
 from resnets import ResNet101, ResNet50
-# from resnets_do import ResNet152_mc, ResNet152_mc_dp
 from resnets_do import ResNet152, ResNet152_do
 from resnetv2 import InceptionResNetV2Same
 from tensorflow.keras import Model, Input
@@ -100,34 +99,6 @@ def conv_relu_do(input, num_channel, kernel_size, stride, name, padding='same', 
     return x
 
 
-def decoder_block(input, filters, skip, block_name):
-    x = UpSampling2D()(input)
-    x = conv_bn_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1')
-    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
-    x = conv_bn_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2')
-    return x
-
-
-def decoder_block_no_bn(input, filters, skip, block_name, activation='relu'):
-    x = UpSampling2D()(input)
-    x = conv_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation)
-    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
-    x = conv_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation)
-    return x
-
-
-def decoder_block_no_bn_do(input, filters, skip, block_name, activation='relu', net_type=NetType.mc, dp_p=0.3):
-    x = UpSampling2D()(input)
-    x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation,
-                     net_type=net_type, dp_p=dp_p)
-    # if net_type==NetType.mc_dp:
-    #     Dropout() ???
-    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
-    x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation,
-                     net_type=net_type, dp_p=dp_p)
-    return x
-
-
 def create_pyramid_features(C1, C2, C3, C4, C5, feature_size=256):
     P5 = Conv2D(feature_size, kernel_size=1, strides=1, padding='same', name='P5', kernel_initializer="he_normal")(C5)
     P5_upsampled = UpSampling2D(name='P5_upsampled')(P5)
@@ -157,6 +128,33 @@ def create_pyramid_features(C1, C2, C3, C4, C5, feature_size=256):
 
     return P1, P2, P3, P4, P5
 
+
+def decoder_block(input, filters, skip, block_name):
+    x = UpSampling2D()(input)
+    x = conv_bn_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1')
+    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
+    x = conv_bn_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2')
+    return x
+
+
+def decoder_block_no_bn(input, filters, skip, block_name, activation='relu'):
+    x = UpSampling2D()(input)
+    x = conv_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation)
+    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
+    x = conv_relu(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation)
+    return x
+
+
+def decoder_block_no_bn_do(input, filters, skip, block_name, activation='relu', net_type=NetType.mc, dp_p=0.3):
+    x = UpSampling2D()(input)
+    x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation,
+                     net_type=net_type, dp_p=dp_p)
+    # if net_type==NetType.mc_dp:
+    #     Dropout() ???
+    x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
+    x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation,
+                     net_type=net_type, dp_p=dp_p)
+    return x
 
 def prediction_fpn_block(x, name, upsample=None):
     x = conv_relu(x, 128, 3, stride=1, name="prediction_" + name + "_1")
@@ -214,34 +212,24 @@ def resnet152_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='image
     resnet_base = ResNet152_do(input_shape=input_shape, include_top=True, net_type=net_type, do_p=do_p,
                                weights=weights)
     conv1 = resnet_base.get_layer("conv1_relu").output
-    if net_type == NetType.mc_dp:
-        conv1 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv1.shape))])(conv1, training=True)
     conv2 = resnet_base.get_layer("res2c_relu").output
-    if net_type == NetType.mc_dp:
-        conv2 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv2.shape))])(conv2, training=True)
     conv3 = resnet_base.get_layer("res3b7_relu").output
-    if net_type == NetType.mc_dp:
-        conv3 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv3.shape))])(conv3, training=True)
     conv4 = resnet_base.get_layer("res4b35_relu").output
-    if net_type == NetType.mc_dp:
-        conv4 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv4.shape))])(conv4, training=True)
     conv5 = resnet_base.get_layer("res5c_relu").output
-    if net_type == NetType.mc_dp:
-        conv5 = Dropout(do_p, noise_shape=[1 for _ in range(len(conv5.shape))])(conv5, training=True)
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
-            prediction_fpn_block_do(P5, "P5", (8, 8), net_type=net_type),
-            prediction_fpn_block_do(P4, "P4", (4, 4), net_type=net_type),
-            prediction_fpn_block_do(P3, "P3", (2, 2), net_type=net_type),
-            prediction_fpn_block_do(P2, "P2", net_type=net_type),
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
         ]
     )
-    x = conv_bn_relu_do(x, 256, 3, (1, 1), name="aggregation", net_type=net_type)
-    x = decoder_block_no_bn_do(x, 128, conv1, 'up4', net_type=net_type)
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
     x = UpSampling2D()(x)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv1", net_type=net_type)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
     model = Model(resnet_base.input, x)
@@ -428,6 +416,9 @@ def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
         x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
     model = Model(densenet.input, x)
     return model
+
+def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
+    nasnet =
 
 
 def inception_resnet_v2_fpn(input_shape, channels=1, activation="sigmoid"):

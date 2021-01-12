@@ -1,0 +1,934 @@
+# -*- coding: utf-8 -*-
+"""NASNet-A models for Keras.
+NASNet refers to Neural Architecture Search Network, a family of models
+that were designed automatically by learning the model architectures
+directly on the dataset of interest.
+Here we consider NASNet-A, the highest performance model that was found
+for the CIFAR-10 dataset, and then extended to ImageNet 2012 dataset,
+obtaining state of the art performance on CIFAR-10 and ImageNet 2012.
+Only the NASNet-A models, and their respective weights, which are suited
+for ImageNet 2012 are provided.
+The below table describes the performance on ImageNet 2012:
+--------------------------------------------------------------------------------
+      Architecture       | Top-1 Acc | Top-5 Acc |  Multiply-Adds |  Params (M)
+--------------------------------------------------------------------------------
+|   NASNet-A (4 @ 1056)  |   74.0 %  |   91.6 %  |       564 M    |     5.3    |
+|   NASNet-A (6 @ 4032)  |   82.7 %  |   96.2 %  |      23.8 B    |    88.9    |
+--------------------------------------------------------------------------------
+Reference:
+  - [Learning Transferable Architectures for Scalable Image Recognition](
+      https://arxiv.org/abs/1707.07012) (CVPR 2018)
+"""
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import os
+import warnings
+
+import h5py
+import numpy as np
+import tensorflow as tf
+from keras_applications.imagenet_utils import _obtain_input_shape
+from tensorflow.keras import backend as K
+from tensorflow.keras import layers
+from tensorflow.keras.applications import imagenet_utils
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import AveragePooling2D
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import Cropping2D
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.layers import GlobalAveragePooling2D
+from tensorflow.keras.layers import GlobalMaxPooling2D
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import SeparableConv2D
+from tensorflow.keras.layers import ZeroPadding2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.utils import get_file
+from tensorflow.keras.utils import get_source_inputs
+from tensorflow.python.keras.applications.imagenet_utils import correct_pad
+
+from . import NetType
+
+TF_NASNET_LARGE_WEIGHT_PATH = 'https://storage.googleapis.com/tensorflow/keras-applications/nasnet/NASNet-large.h5'
+TF_NASNET_LARGE_WEIGHT_PATH_NO_TOP = 'https://storage.googleapis.com/tensorflow/keras-applications/nasnet/NASNet-large-no-top.h5'
+
+
+def NASNet_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', input_tensor=None,
+              input_shape=None, penultimate_filters=4032, num_blocks=6, stem_block_filters=96,
+              skip_reduction=True, filter_multiplier=2, pooling=None, classes=1000):
+    """Instantiates a NASNet model.
+
+    Optionally loads weights pre-trained
+    on ImageNet. This model is available for TensorFlow only,
+    and can only be used with inputs following the TensorFlow
+    data format `(width, height, channels)`.
+    You should set `image_data_format='channels_last'` in your Keras config
+    located at ~/.keras/keras.json.
+
+    Note that the default input image size for this model is 331x331.
+
+    # Arguments
+        include_top: whether to include the fully-connected
+            layer at the top of the network.
+        weights: one of `None` (random initialization),
+              'imagenet' (pre-training on ImageNet),
+              or the path to the weights file to be loaded.
+        input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
+            to use as image input for the model.
+        input_shape: optional shape tuple, only to be specified
+            if `include_top` is False (otherwise the input shape
+            has to be `(299, 299, 3)`.
+            It should have exactly 3 inputs channels,
+            and width and height should be no smaller than 71.
+            E.g. `(150, 150, 3)` would be one valid value.
+        pooling: Optional pooling mode for feature extraction
+            when `include_top` is `False`.
+            - `None` means that the output of the model will be
+                the 4D tensor output of the
+                last convolutional layer.
+            - `avg` means that global average pooling
+                will be applied to the output of the
+                last convolutional layer, and thus
+                the output of the model will be a 2D tensor.
+            - `max` means that global max pooling will
+                be applied.
+        classes: optional number of classes to classify images
+            into, only to be specified if `include_top` is True, and
+            if no `weights` argument is specified.
+
+    # Returns
+        A Keras model instance.
+
+    # Raises
+        ValueError: in case of invalid argument for `weights`,
+            or invalid input shape.
+        RuntimeError: If attempting to run this model with a
+            backend that does not support separable convolutions.
+    """
+    if not (weights in {'imagenet', None} or os.path.exists(weights)):
+        raise ValueError('The `weights` argument should be either '
+                         '`None` (random initialization), `imagenet` '
+                         '(pre-training on ImageNet), '
+                         'or the path to the weights file to be loaded.')
+
+    if weights == 'imagenet' and include_top and classes != 1000:
+        raise ValueError('If using `weights` as imagenet with `include_top`'
+                         ' as true, `classes` should be 1000')
+
+    if K.backend() != 'tensorflow':
+        raise RuntimeError('The Xception model is only available with '
+                           'the TensorFlow backend.')
+    if K.image_data_format() != 'channels_last':
+        warnings.warn('The NASNet model is only available for the '
+                      'input data format "channels_last" '
+                   -   '(width, height, channels). '
+                      'However your settings specify the default '
+                      'data format "channels_first" (channels, width, height). '
+                      'You should set `image_data_format="channels_last"` in your Keras '
+                      'config located at ~/.keras/keras.json. '
+                      'The model being returned right now will expect inputs '
+                      'to follow the "channels_last" data format.')
+        K.set_image_data_format('channels_last')
+        old_data_format = 'channels_first'
+    else:
+        old_data_format = None
+
+    # Determine proper input shape
+    input_shape = _obtain_input_shape(input_shape,
+                                      default_size=331,
+                                      min_size=32,
+                                      data_format=K.image_data_format(),
+                                      require_flatten=False,
+                                      weights=None)  # weights=None to prevent input channels equality check
+
+    if input_tensor is None:
+        img_input = Input(shape=input_shape)
+    else:
+        if not K.is_keras_tensor(input_tensor):
+            img_input = Input(tensor=input_tensor, shape=input_shape)
+        else:
+            img_input = input_tensor
+
+    if penultimate_filters % (24 * (filter_multiplier ** 2)) != 0:
+        raise ValueError(
+            'For NASNet-A models, the `penultimate_filters` must be a multiple '
+            'of 24 * (`filter_multiplier` ** 2). Current value: %d' %
+            penultimate_filters)
+    filters = penultimate_filters // 24
+
+    x = Conv2D(stem_block_filters, (3, 3), strides=(2, 2), padding="valid",
+               use_bias=False, name='stem_conv1', kernel_initializer='he_normal')(img_input)
+    x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='stem_bn1')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_df:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+    p = None
+    x, p = _reduction_a_cell(
+        x, p, filters // (filter_multiplier ** 2), block_id='stem_1')
+    x, p = _reduction_a_cell(
+        x, p, filters // filter_multiplier, block_id='stem_2')
+
+    for i in range(num_blocks):
+        x, p = _normal_a_cell(x, p, filters, block_id='%d' % (i))
+
+    x, p0 = _reduction_a_cell(
+        x, p, filters * filter_multiplier, block_id='reduce_%d' % (num_blocks))
+
+    p = p0 if not skip_reduction else p
+
+    for i in range(num_blocks):
+        x, p = _normal_a_cell(x, p, filters * filter_multiplier, block_id='%d' % (num_blocks + i + 1))
+
+    x, p0 = _reduction_a_cell(x, p, filters * filter_multiplier ** 2, block_id='reduce_%d' % (2 * num_blocks))
+    p = p0 if not skip_reduction else p
+
+    for i in range(num_blocks):
+        x, p = _normal_a_cell(x, p, filters * filter_multiplier ** 2, block_id='%d' % (2 * num_blocks + i + 1))
+
+    x = Activation('relu')(x)
+
+    if include_top:
+        x = GlobalAveragePooling2D()(x)
+        imagenet_utils.validate_activation('sigmoid', weights)
+        x = Dense(classes, activation='sigmoid', name='predictions')(x)
+    else:
+        if pooling == 'avg':
+            x = GlobalAveragePooling2D()(x)
+        elif pooling == 'max':
+            x = GlobalMaxPooling2D()(x)
+
+    # Ensure that the model takes into account
+    # any potential predecessors of `input_tensor`.
+    if input_tensor is not None:
+        inputs = get_source_inputs(input_tensor)
+    else:
+        inputs = img_input
+    # Create model.
+    model = Model(inputs, x, name='NASNet')
+    # Create donor model
+    if input_shape[-1] > 3 and weights is not None:
+        input_shape1 = (*input_shape[:-1], 3)
+        donor_model = get_donor_model(include_top, input_tensor=None,
+                                      input_shape=input_shape1,
+                                      pooling=pooling,
+                                      classes=classes)
+
+    # load weights
+    if weights is not None and input_shape[-1] > 3:
+        if weights == 'imagenet':
+            if include_top:
+                print('Loading pretrained ImageNet weights, include top for NASNet backbone')
+                weights_path = get_file('nasnet_large.h5',
+                                        TF_NASNET_LARGE_WEIGHT_PATH,
+                                        cache_subdir='models',
+                                        file_hash='11577c9a518f0070763c2b964a382f17')
+            else:
+                print('Loading pretrained ImageNet weights, exclude top for NASNet backbone')
+                weights_path = get_file('nasnet_large_no_top.h5',
+                                        TF_NASNET_LARGE_WEIGHT_PATH_NO_TOP,
+                                        cache_subdir='models',
+                                        file_hash='d81d89dc07e6e56530c4e77faddd61b5')
+        else:
+            ValueError('This is an unexpected value for "weights" parameter')
+        if input_shape[-1] > 3:
+            print(
+                f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels for NASNet backbone')
+            donor_model.load_weights(weights_path)
+
+            j = 1  # ignore input layers
+            for i, l in enumerate(model.layers[1:]):
+                if j >= len(donor_model.layers):
+                    break
+                d_l = donor_model.layers[j]
+                # if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name:
+                    continue
+                j += 1
+                if i == 0:
+                    new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
+                    l.weights[0].assign(new_w)
+                else:
+                    for (w, d_w) in zip(l.weights, d_l.weights):
+                        w.assign(d_w)
+            assert j == len(donor_model.layers)
+
+            if weights != 'imagenet':
+                print(f'Loading trained "{weights}" weights')
+                f = h5py.File(weights, 'r')
+                for i, l in enumerate(model.layers):
+                    l_ws = l.weights
+                    # print(len(f.keys()))
+                    # for k in f.keys():
+                    #    print(k)
+                    # input()
+                    d_ws = [f[l.name][l_w.name] for l_w in l_ws]
+                    if i == 1:
+                        new_w = np.concatenate((d_ws[0].value, l.weights[0].numpy()[..., 3:, :]), axis=-2)
+                        l.weights[0].assign(new_w)
+                        continue
+                    for (w, d_w) in zip(l.weights, d_ws):
+                        w.assign(d_w.value)
+            del donor_model
+        else:
+            model.load_weights(weights_path)
+    elif weights is not None:
+        model.load_weights(weights)
+    else:
+        print('No pretrained weights passed')
+
+    if old_data_format:
+        K.set_image_data_format(old_data_format)
+    return model
+
+
+
+
+def old_xcep_body():
+
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block1_conv1_act')(x)
+    x = Conv2D(64, (3, 3), use_bias=False, name='block1_conv2', padding='same')(x)
+    x = BatchNormalization(name='block1_conv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block1_conv2_act')(x)
+
+    residual = Conv2D(128, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    if net_type == NetType.mc:
+        residual = Dropout(dp_p)(residual, training=True)
+    elif net_type == NetType.mc_dp:
+        residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
+
+
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+    x = BatchNormalization(name='block2_sepconv1_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block2_sepconv2_act')(x)
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+    x = BatchNormalization(name='block2_sepconv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block2_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(256, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    if net_type == NetType.mc:
+        residual = Dropout(dp_p)(residual, training=True)
+    elif net_type == NetType.mc_dp:
+        residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
+
+
+    x = Activation('relu', name='block3_sepconv1_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+    x = BatchNormalization(name='block3_sepconv1_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block3_sepconv2_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+    x = BatchNormalization(name='block3_sepconv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block3_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(728, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    if net_type == NetType.mc:
+        residual = Dropout(dp_p)(residual, training=True)
+    elif net_type == NetType.mc_dp:
+        residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
+
+
+    x = Activation('relu', name='block4_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv1')(x)
+    x = BatchNormalization(name='block4_sepconv1_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block4_sepconv2_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv2')(x)
+    x = BatchNormalization(name='block4_sepconv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block4_pool')(x)
+    x = layers.add([x, residual])
+
+    for i in range(8):
+        residual = x
+        prefix = 'block' + str(i + 5)
+
+        x = Activation('relu', name=prefix + '_sepconv1_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv1')(x)
+        x = BatchNormalization(name=prefix + '_sepconv1_bn')(x)
+        if net_type == NetType.mc:
+            x = Dropout(dp_p)(x, training=True)
+        elif net_type == NetType.mc_dp:
+            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Activation('relu', name=prefix + '_sepconv2_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv2')(x)
+        x = BatchNormalization(name=prefix + '_sepconv2_bn')(x)
+        if net_type == NetType.mc:
+            x = Dropout(dp_p)(x, training=True)
+        elif net_type == NetType.mc_dp:
+            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Activation('relu', name=prefix + '_sepconv3_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv3')(x)
+        x = BatchNormalization(name=prefix + '_sepconv3_bn')(x)
+        if net_type == NetType.mc:
+            x = Dropout(dp_p)(x, training=True)
+        elif net_type == NetType.mc_dp:
+            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+        x = layers.add([x, residual])
+
+    residual = Conv2D(1024, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+    if net_type == NetType.mc:
+        residual = Dropout(dp_p)(residual, training=True)
+    elif net_type == NetType.mc_dp:
+        residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
+
+    x = Activation('relu', name='block13_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block13_sepconv1')(x)
+    x = BatchNormalization(name='block13_sepconv1_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block13_sepconv2_act')(x)
+    x = SeparableConv2D(1024, (3, 3), padding='same', use_bias=False, name='block13_sepconv2')(x)
+    x = BatchNormalization(name='block13_sepconv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block13_pool')(x)
+    x = layers.add([x, residual])
+
+    x = SeparableConv2D(1536, (3, 3), padding='same', use_bias=False, name='block14_sepconv1')(x)
+    x = BatchNormalization(name='block14_sepconv1_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block14_sepconv1_act')(x)
+
+    x = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+    x = BatchNormalization(name='block14_sepconv2_bn')(x)
+    if net_type == NetType.mc:
+        x = Dropout(dp_p)(x, training=True)
+    elif net_type == NetType.mc_dp:
+        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Activation('relu', name='block14_sepconv2_act')(x)
+
+    if include_top:
+        x = GlobalAveragePooling2D(name='avg_pool')(x)
+        x = Dense(classes, activation='softmax', name='predictions')(x)
+    else:
+        if pooling == 'avg':
+            x = GlobalAveragePooling2D()(x)
+        elif pooling == 'max':
+            x = GlobalMaxPooling2D()(x)
+
+    # Ensure that the model takes into account
+    # any potential predecessors of `input_tensor`.
+    if input_tensor is not None:
+        inputs = get_source_inputs(input_tensor)
+    else:
+        inputs = img_input
+    # Create model.
+    model = Model(inputs, x, name='xception')
+    # Create donor model
+    if input_shape[-1] > 3 and weights is not None:
+        input_shape1 = (*input_shape[:-1], 3)
+        donor_model = get_donor_model(include_top, input_tensor=None,
+                                      input_shape=input_shape1,
+                                      pooling=pooling,
+                                      classes=classes)
+
+    # load weights
+    if weights is not None and input_shape[-1] > 3:
+        if weights == 'imagenet':
+            if include_top:
+                print('Loading pretrained ImageNet weights, include top for xception backbone')
+                weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels.h5',
+                                        TF_WEIGHTS_PATH,
+                                        cache_subdir='models',
+                                        file_hash='0a58e3b7378bc2990ea3b43d5981f1f6')
+            else:
+                print('Loading pretrained ImageNet weights, exclude top for xception backbone')
+                weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels_notop.h5',
+                                        TF_WEIGHTS_PATH_NO_TOP,
+                                        cache_subdir='models',
+                                        file_hash='b0042744bf5b25fce3cb969f33bebb97')
+        else:
+            ValueError('This is an unexpected value for "weights" parameter')
+        if input_shape[-1] > 3:
+            print(f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels for xception backbone')
+            donor_model.load_weights(weights_path)
+
+            j = 1 # ignore input layers
+            for i, l in enumerate(model.layers[1:]):
+                if j >= len(donor_model.layers):
+                    break
+                d_l = donor_model.layers[j]
+                #if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name:
+                    continue
+                j += 1
+                if i == 0:
+                    new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
+                    l.weights[0].assign(new_w)
+                else:
+                    for (w, d_w) in zip (l.weights, d_l.weights):
+                        w.assign(d_w)
+            assert j == len(donor_model.layers)
+
+            if weights != 'imagenet':
+                print(f'Loading trained "{weights}" weights')
+                f = h5py.File(weights, 'r')
+                for i, l in enumerate(model.layers):
+                    l_ws = l.weights
+                    #print(len(f.keys()))
+                    #for k in f.keys():
+                    #    print(k)
+                    #input()
+                    d_ws = [f[l.name][l_w.name] for l_w in l_ws]
+                    if i == 1:
+                        new_w = np.concatenate((d_ws[0].value, l.weights[0].numpy()[..., 3:, :]), axis=-2)
+                        l.weights[0].assign(new_w)
+                        continue
+                    for (w, d_w) in zip(l.weights, d_ws):
+                        w.assign(d_w.value)
+            del donor_model
+        else:
+            model.load_weights(weights_path)
+    elif weights is not None:
+        model.load_weights(weights)
+    else:
+        print('No pretrained weights passed')
+
+    if old_data_format:
+        K.set_image_data_format(old_data_format)
+    return model
+
+
+
+
+
+#def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=(1, 1), dp_p=0.3, block_id=None):
+def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=(1, 1), dp_p=None, block_id=None):
+    """Adds 2 blocks of [relu-separable conv-batchnorm].
+
+    Args:
+        ip: Input tensor
+        filters: Number of output filters per layer
+        kernel_size: Kernel size of separable convolutions
+        strides: Strided convolution for downsampling
+        block_id: String block_id
+    Returns:
+        A Keras tensor
+    """
+
+    with K.name_scope('separable_conv_block_%s' % block_id):
+        x = Activation('relu')(ip)
+        if strides == (2, 2):
+            x = ZeroPadding2D(padding=correct_pad(x, kernel_size),
+                                     name='separable_conv_1_pad_%s' % block_id)(x)
+            conv_pad = 'valid'
+        else:
+            conv_pad = 'same'
+        x = SeparableConv2D(filters, kernel_size, strides=strides, name='separable_conv_1_%s' % block_id,
+                                   padding=conv_pad, use_bias=False, kernel_initializer='he_normal')(x)
+        x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='separable_conv_1_bn_%s' % (block_id))(x)
+        if net_type == NetType.mc:
+            x = Dropout(dp_p)(x, training=True)
+        elif net_type == NetType.mc_df:
+            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Activation('relu')(x)
+        x = SeparableConv2D(filters, kernel_size, name='separable_conv_2_%s' % block_id, padding='same',
+                                   use_bias=False, kernel_initializer='he_normal')(x)
+        x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='separable_conv_2_bn_%s' % (block_id))(x)
+        if net_type == NetType.mc:
+            x = Dropout(dp_p)(x, training=True)
+        elif net_type == NetType.mc_df:
+            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Activation('relu')(x)
+    return x
+
+
+def _adjust_block(p, ip, filters, block_id=None):
+    """Adjusts the input `previous path` to match the shape of the `input`.
+    Used in situations where the output number of filters needs to be changed.
+
+    Args:
+        p: Input tensor which needs to be modified
+        ip: Input tensor whose shape needs to be matched
+        filters: Number of output filters to be matched
+        block_id: String block_id
+    Returns:
+        Adjusted Keras tensor
+    """
+
+    ip_shape = K.int_shape(ip)
+
+    if p is not None:
+        p_shape = K.int_shape(p)
+
+    with K.name_scope('adjust_block'):
+        if p is None:
+            p = ip
+
+        elif p_shape[-2] != ip_shape[-2]:
+            with K.name_scope('adjust_reduction_block_%s' % block_id):
+                p = Activation('relu', name='adjust_relu_1_%s' % block_id)(p)
+                p1 = AveragePooling2D((1, 1), strides=(2, 2), padding='valid',
+                                             name='adjust_avg_pool_1_%s' % block_id)(p)
+                p1 = Conv2D(filters // 2, (1, 1), padding='same', use_bias=False,
+                                   name='adjust_conv_1_%s' % block_id, kernel_initializer='he_normal')(p1)
+                p2 = ZeroPadding2D(padding=((0, 1), (0, 1)))(p)
+                p2 = Cropping2D(cropping=((1, 0), (1, 0)))(p2)
+                p2 = AveragePooling2D((1, 1),
+                                             strides=(2, 2),
+                                             padding='valid',
+                                             name='adjust_avg_pool_2_%s' % block_id)(
+                                                 p2)
+                p2 = Conv2D(filters // 2, (1, 1), padding='same', use_bias=False,
+                                   name='adjust_conv_2_%s' % block_id, kernel_initializer='he_normal')(p2)
+                p = layers.concatenate([p1, p2])
+                p = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='adjust_bn_%s' % block_id)(p)
+
+        elif p_shape[-1] != filters:
+            with K.name_scope('adjust_projection_block_%s' % block_id):
+                p = Activation('relu')(p)
+                p = Conv2D(filters, (1, 1), strides=(1, 1), padding='same',
+                                  name='adjust_conv_projection_%s' % block_id, use_bias=False,
+                                  kernel_initializer='he_normal')(p)
+                p = layers.BatchNormalization(momentum=0.9997, epsilon=1e-3, name='adjust_bn_%s' % block_id)(p)
+    return p
+
+
+def _normal_a_cell(ip, p, filters, net_type, dp_p=0.3, block_id=None):
+    """Adds a Normal cell for NASNet-A (Fig. 4 in the paper).
+
+    Args:
+        ip: Input tensor `x`
+        p: Input tensor `p`
+        filters: Number of output filters
+        block_id: String block_id
+
+    Returns:
+        A Keras tensor
+    """
+
+    with K.name_scope('normal_A_block_%s' % block_id):
+        p = _adjust_block(p, ip, filters, block_id)
+
+        h = Activation('relu')(ip)
+        h = Conv2D(filters, (1, 1), strides=(1, 1), padding='same', name='normal_conv_1_%s' % block_id,
+                          use_bias=False, kernel_initializer='he_normal')(h)
+        h = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='normal_bn_1_%s' % block_id)(h)
+        if net_type == NetType.mc:
+            h = Dropout(dp_p)(h, training=True)
+        elif net_type == NetType.mc_df:
+            h = Dropout(dp_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
+
+        with K.name_scope('block_1'):
+            x1_1 = _separable_conv_block_do(h, filters, net_type, kernel_size=(5, 5), dp_p=dp_p, block_id='normal_left1_%s' % block_id)
+            x1_2 = _separable_conv_block_do(p, filters, net_type, dp_p=dp_p, block_id='normal_right1_%s' % block_id)
+
+            if net_type == NetType.mc_dp:
+                # print('MC_DP___________')
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x1_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_1.shape))])(x1_1, training=True)
+                else:
+                    x1_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_2.shape))])(x1_2, training=True)
+            x1 = layers.add([x1_1, x1_2], name='normal_add_1_%s' % block_id)
+
+        with K.name_scope('block_2'):
+            x2_1 = _separable_conv_block_do(p, filters, net_type, (5, 5), dp_p=dp_p, block_id='normal_left2_%s' % block_id)
+            x2_2 = _separable_conv_block_do(p, filters, net_type, (3, 3), dp_p=dp_p, block_id='normal_right2_%s' % block_id)
+
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x2_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
+                else:
+                    x2_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
+            x2 = layers.add([x2_1, x2_2], name='normal_add_2_%s' % block_id)
+
+        with K.name_scope('block_3'):
+            x3 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='normal_left3_%s' % block_id)(h)
+
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x3 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3.shape))])(x3, training=True)
+                else:
+                    p_add = Dropout(dp_p, noise_shape=[1 for _ in range(len(p.shape))])(p, training=True)
+            x3 = layers.add([x3, p_add], name='normal_add_3_%s' % block_id)
+
+        with K.name_scope('block_4'):
+            x4_1 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='normal_left4_%s' % block_id)(p)
+            x4_2 = AveragePooling2D((3, 3), strides=(1, 1), padding='same',
+                                    name='normal_right4_%s' % block_id)(p)
+
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x4_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4_1.shape))])(x4_1, training=True)
+                else:
+                    x4_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4_2.shape))])(x4_2, training=True)
+            x4 = layers.add([x4_1, x4_2], name='normal_add_4_%s' % block_id)
+
+        with K.name_scope('block_5'):
+            x5 = _separable_conv_block_do(h, filters, net_type, dp_p=dp_p, block_id='normal_left5_%s' % block_id)
+
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x5 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5.shape))])(x5, training=True)
+                else:
+                    h = Dropout(dp_p, noise_shape=[1 for _ in range(len(h.shape))])(h, training=True)
+            x5 = layers.add([x5, h], name='normal_add_5_%s' % block_id)
+
+        x = layers.concatenate([p, x1, x2, x3, x4, x5], name='normal_concat_%s' % block_id)
+    return x, ip
+
+
+def _reduction_a_cell(ip, p, filters, net_type, dp_p=0.3, block_id=None):
+    """Adds a Reduction cell for NASNet-A (Fig. 4 in the paper).
+
+    Args:
+        ip: Input tensor `x`
+        p: Input tensor `p`
+        filters: Number of output filters
+        block_id: String block_id
+
+    Returns:
+        A Keras tensor
+    """
+
+    with K.name_scope('reduction_A_block_%s' % block_id):
+        p = _adjust_block(p, ip, filters, block_id)
+
+        h = Activation('relu')(ip)
+        h = Conv2D(filters, (1, 1), strides=(1, 1), padding='same', name='reduction_conv_1_%s' % block_id,
+                          use_bias=False, kernel_initializer='he_normal')(h)
+        h = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='reduction_bn_1_%s' % block_id)(h)
+        if net_type == NetType.mc:
+            h = Dropout(dp_p)(h, training=True)
+        elif net_type == NetType.mc_df:
+            h = Dropout(dp_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
+        h3 = ZeroPadding2D(padding=correct_pad(h, 3), name='reduction_pad_1_%s' % block_id)(h)
+
+        with K.name_scope('block_1'):
+            x1_1 = _separable_conv_block_do(h, filters, net_type, (5, 5), strides=(2, 2), dp_p=dp_p, block_id='reduction_left1_%s' % block_id)
+            x1_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), dp_p=dp_p, block_id='reduction_right1_%s' % block_id)
+
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x1_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_1.shape))])(x1_1, training=True)
+                else:
+                    x1_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_2.shape))])(x1_2, training=True)
+            x1 = layers.add([x1_1, x1_2], name='reduction_add_1_%s' % block_id)
+
+        with K.name_scope('block_2'):
+            x2_1 = MaxPooling2D((3, 3), strides=(2, 2), padding='valid', name='reduction_left2_%s' % block_id)(h3)
+            x2_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), dp_p=dp_p, block_id='reduction_right2_%s' % block_id)
+
+            if tf.random.uniform(shape=()).numpy() >= 0.5:
+                x2_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
+            else:
+                x2_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
+            x2 = layers.add([x2_1, x2_2], name='reduction_add_2_%s' % block_id)
+
+        with K.name_scope('block_3'):
+            x3_1 = AveragePooling2D((3, 3), strides=(2, 2), padding='valid',
+                                           name='reduction_left3_%s' % block_id)(h3)
+            x3_2 = _separable_conv_block_do(p, filters, net_type, (5, 5), strides=(2, 2), dp_p=dp_p, block_id='reduction_right3_%s' % block_id)
+
+            if tf.random.uniform(shape=()).numpy() >= 0.5:
+                x3_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3_1.shape))])(x3_1, training=True)
+            else:
+                x3_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3_2.shape))])(x3_2, training=True)
+            x3 = layers.add([x3_1, x3_2], name='reduction_add3_%s' % block_id)
+
+        with K.name_scope('block_4'):
+            x4 = AveragePooling2D((3, 3), strides=(1, 1), padding='same',
+                                         name='reduction_left4_%s' % block_id)(x1)
+
+            if tf.random.uniform(shape=()).numpy() >= 0.5:
+                x2_add = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2.shape))])(x2, training=True)
+            else:
+                x4 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4.shape))])(x4, training=True)
+            x4 = layers.add([x2_add, x4])
+
+        with K.name_scope('block_5'):
+            x5_1 = _separable_conv_block_do(x1, filters, net_type, (3, 3), dp_p=dp_p, block_id='reduction_left4_%s' % block_id)
+            x5_2 = MaxPooling2D((3, 3), strides=(2, 2), padding='valid',
+                                       name='reduction_right5_%s' % block_id)(h3)
+
+            if tf.random.uniform(shape=()).numpy() >= 0.5:
+                x5_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5_1.shape))])(x5_1, training=True)
+            else:
+                x5_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5_2.shape))])(x5_2, training=True)
+            x5 = layers.add([x5_1, x5_2], name='reduction_add4_%s' % block_id)
+
+        x = layers.concatenate([x2, x3, x4, x5], name='reduction_concat_%s' % block_id)
+        return x, ip
+
+
+def get_donor_model(include_top=True, input_tensor=None,
+                    input_shape=None, pooling=None, classes=1000):
+    input_shape = _obtain_input_shape(input_shape,
+                                      default_size=299,
+                                      min_size=71,
+                                      data_format=K.image_data_format(),
+                                      require_flatten=False,
+                                      weights=None)  # weights=None to prevent input channels equality check
+
+    if input_tensor is None:
+        img_input = Input(shape=input_shape)
+    else:
+        if not K.is_keras_tensor(input_tensor):
+            img_input = Input(tensor=input_tensor, shape=input_shape)
+        else:
+            img_input = input_tensor
+
+    x = Conv2D(32, (3, 3), strides=(2, 2), use_bias=False, name='block1_conv1', padding="same")(img_input)
+    x = BatchNormalization(name='block1_conv1_bn')(x)
+    x = Activation('relu', name='block1_conv1_act')(x)
+    x = Conv2D(64, (3, 3), use_bias=False, name='block1_conv2', padding='same')(x)
+    x = BatchNormalization(name='block1_conv2_bn')(x)
+    x = Activation('relu', name='block1_conv2_act')(x)
+
+    residual = Conv2D(128, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
+    x = BatchNormalization(name='block2_sepconv1_bn')(x)
+    x = Activation('relu', name='block2_sepconv2_act')(x)
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
+    x = BatchNormalization(name='block2_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block2_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(256, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block3_sepconv1_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
+    x = BatchNormalization(name='block3_sepconv1_bn')(x)
+    x = Activation('relu', name='block3_sepconv2_act')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
+    x = BatchNormalization(name='block3_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block3_pool')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(728, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block4_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv1')(x)
+    x = BatchNormalization(name='block4_sepconv1_bn')(x)
+    x = Activation('relu', name='block4_sepconv2_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv2')(x)
+    x = BatchNormalization(name='block4_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block4_pool')(x)
+    x = layers.add([x, residual])
+
+    for i in range(8):
+        residual = x
+        prefix = 'block' + str(i + 5)
+
+        x = Activation('relu', name=prefix + '_sepconv1_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv1')(x)
+        x = BatchNormalization(name=prefix + '_sepconv1_bn')(x)
+        x = Activation('relu', name=prefix + '_sepconv2_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv2')(x)
+        x = BatchNormalization(name=prefix + '_sepconv2_bn')(x)
+        x = Activation('relu', name=prefix + '_sepconv3_act')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv3')(x)
+        x = BatchNormalization(name=prefix + '_sepconv3_bn')(x)
+
+        x = layers.add([x, residual])
+
+    residual = Conv2D(1024, (1, 1), strides=(2, 2),
+                      padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    x = Activation('relu', name='block13_sepconv1_act')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block13_sepconv1')(x)
+    x = BatchNormalization(name='block13_sepconv1_bn')(x)
+    x = Activation('relu', name='block13_sepconv2_act')(x)
+    x = SeparableConv2D(1024, (3, 3), padding='same', use_bias=False, name='block13_sepconv2')(x)
+    x = BatchNormalization(name='block13_sepconv2_bn')(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block13_pool')(x)
+    x = layers.add([x, residual])
+
+    x = SeparableConv2D(1536, (3, 3), padding='same', use_bias=False, name='block14_sepconv1')(x)
+    x = BatchNormalization(name='block14_sepconv1_bn')(x)
+    x = Activation('relu', name='block14_sepconv1_act')(x)
+
+    x = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False, name='block14_sepconv2')(x)
+    x = BatchNormalization(name='block14_sepconv2_bn')(x)
+    x = Activation('relu', name='block14_sepconv2_act')(x)
+
+    if include_top:
+        x = GlobalAveragePooling2D(name='avg_pool')(x)
+        x = Dense(classes, activation='softmax', name='predictions')(x)
+    else:
+        if pooling == 'avg':
+            x = GlobalAveragePooling2D()(x)
+        elif pooling == 'max':
+            x = GlobalMaxPooling2D()(x)
+
+    # Ensure that the model takes into account
+    # any potential predecessors of `input_tensor`.
+    if input_tensor is not None:
+        inputs = get_source_inputs(input_tensor)
+    else:
+        inputs = img_input
+
+    return Model(inputs, x, name='xception')
+
+
+if __name__ == '__main__':
+    NASNet_do(include_top=False, input_shape=(256, 256, 3)).summary()
