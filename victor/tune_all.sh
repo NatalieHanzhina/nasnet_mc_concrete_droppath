@@ -1,2 +1,0 @@
-python tune_inception_softmax_final.py
-python tune_densenet_softmax_final.py

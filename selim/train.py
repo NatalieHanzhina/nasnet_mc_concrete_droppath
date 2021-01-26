@@ -134,10 +134,8 @@ def main():
         steps = [(float(step.split(":")[0]), int(step.split(":")[1])) for step in args.schedule.split(",")]
         lrSchedule = LearningRateScheduler(lambda epoch: schedule_steps(epoch, steps))
         callbacks.insert(0, lrSchedule)
-    #tb = TensorBoard("logs/{}".format(args.network))
     tb_log_dir_path = "logs/{}_{}".format(args.log_dir, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
     tb = TensorBoard(tb_log_dir_path)
-    #tb = TensorBoard("logs/{}_{}".format(args.log_dir, datetime.now().strftime("%d.%m.%Y %H:%M:%S")))
     print(f"Saving tb logs to {tb_log_dir_path}")
     callbacks.append(tb)
     steps_per_epoch = len(dataset.train_ids) / args.batch_size + 1

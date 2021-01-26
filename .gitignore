@@ -170,4 +170,4 @@ data/*
 data_nii_gz/*
 data_test/*
 predictions/*
-selim/logs/*
+src/logs/*
