@@ -40,26 +40,13 @@ class DropPath(Layer):
         self.seed = seed
         self.supports_masking = True
 
-    # def _get_noise_shape(self, inputs):
-    #     # Subclasses of `Dropout` may implement `_get_noise_shape(self, inputs)`,
-    #     # which will override `self.noise_shape`, and allows for custom noise
-    #     # shapes with dynamically sized inputs.
-    #     if self.noise_shape is None:
-    #         return None
-    #
-    #     concrete_inputs_shape = array_ops.shape(inputs)
-    #     noise_shape = []
-    #     for i, value in enumerate(self.noise_shape):
-    #         noise_shape.append(concrete_inputs_shape[i] if value is None else value)
-    #     return ops.convert_to_tensor_v2_with_dispatch(noise_shape)
-
     def call(self, inputs, training=None):
         if training is None:
             training = K.learning_phase()
 
         drop_paths_count = np.sum(self.drop_paths)
         selected_incdicies = np.random.choice(drop_paths_count, int(round(drop_paths_count*self.paths_rate)))
-        tf.print('drop_indices:', tf.convert_to_tensor(selected_incdicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
+        # tf.print('drop_indices:', tf.convert_to_tensor(selected_incdicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
         if len(selected_incdicies) == drop_paths_count:
             selected_incdicies = np.random.choice(drop_paths_count, drop_paths_count-1)
         drop_paths_counter = -1
@@ -76,11 +63,13 @@ class DropPath(Layer):
                 drop_paths_counter += 1
             # output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: dropped_inputs(inp),
             #                          lambda: tf.identity(inp)))
-            output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: tf.math.multiply(inp, 0),
+            output.append(smart_cond(training and drop_paths_counter in selected_incdicies,
+                                     lambda: tf.math.multiply(inp, 0),
                                      lambda: tf.identity(inp)))
 
         for i in selected_incdicies:
-            tf.debugging.Assert(tf.math.reduce_max(output[i]) == 0., data=[tf.reduce_max(out) for out in output], summarize=3)
+            tf.debugging.Assert(tf.math.reduce_max(output[i]) == 0., data=[tf.reduce_max(out) for out in output],
+                                summarize=3)
         # for i, br in enumerate(output):
         #     tf.print(f'branch {i}: max', tf.math.reduce_max(br))
         return output
@@ -90,9 +79,9 @@ class DropPath(Layer):
 
     def get_config(self):
         config = {
-            'rate': self.rate,
-            'noise_shape': self.noise_shape,
+            'paths_rate': self.paths_rate,
+            'drop_paths': self.drop_paths,
             'seed': self.seed
         }
-        base_config = super(Dropout, self).get_config()
+        base_config = super(DropPath, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
