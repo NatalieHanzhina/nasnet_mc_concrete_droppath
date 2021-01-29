@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Layer
+from tensorflow.python.keras.utils.tf_utils import smart_cond
 
 
 class DropPath(Layer):
@@ -57,7 +58,8 @@ class DropPath(Layer):
             training = K.learning_phase()
 
         drop_paths_count = np.sum(self.drop_paths)
-        selected_incdicies = np.random.choice(drop_paths_count, int(drop_paths_count*self.paths_rate))
+        selected_incdicies = np.random.choice(drop_paths_count, int(round(drop_paths_count*self.paths_rate)))
+        tf.print('drop_indices:', tf.convert_to_tensor(selected_incdicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
         if len(selected_incdicies) == drop_paths_count:
             selected_incdicies = np.random.choice(drop_paths_count, drop_paths_count-1)
         drop_paths_counter = -1
@@ -66,19 +68,21 @@ class DropPath(Layer):
         def dropped_inputs(input_to_drop):
             return tf.nn.dropout(
                 input_to_drop,
-                noise_shape=tf.convert_to_tensor([1,]*input_to_drop.shape),
+                noise_shape=tf.convert_to_tensor([1,]*len(input_to_drop.shape)),
                 seed=self.seed,
-                rate=1)
+                rate=1-1e-10)
         for i, inp in enumerate(inputs):
             if self.drop_paths[i]:
                 drop_paths_counter += 1
-            output.append(tf.cond(training and drop_paths_counter in selected_incdicies, lambda: dropped_inputs(inp),
-                                  lambda: tf.identity(inp)))
-            # output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: tf.matmul(inp, 0),
+            # output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: dropped_inputs(inp),
             #                          lambda: tf.identity(inp)))
+            output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: tf.math.multiply(inp, 0),
+                                     lambda: tf.identity(inp)))
 
-        # output = control_flow_util.smart_cond(training, dropped_inputs,
-        #                                       lambda: tf.identity(inputs))
+        for i in selected_incdicies:
+            tf.debugging.Assert(tf.math.reduce_max(output[i]) == 0., data=[tf.reduce_max(out) for out in output], summarize=3)
+        # for i, br in enumerate(output):
+        #     tf.print(f'branch {i}: max', tf.math.reduce_max(br))
         return output
 
     def compute_output_shape(self, input_shape):

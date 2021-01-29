@@ -41,7 +41,7 @@ from tensorflow.keras.utils import get_file
 from tensorflow.keras.utils import get_source_inputs
 
 from models import NetType
-from src.resnetv2_utils_do import DropPath
+from resnetv2_utils_do import DropPath
 
 TF_WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.7/inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5'
 TF_WEIGHTS_PATH_NO_TOP = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.7/inception_resnet_v2_weights_tf_dim_ordering_tf_kernels_notop.h5'
@@ -163,20 +163,10 @@ def inception_resnet_block_do(x, scale, block_type, block_idx, activation='relu'
     channel_axis = 1 if K.image_data_format() == 'channels_first' else 3
 
     if net_type == NetType.mc_dp:
-        # print('MC_DP___________')
-        # Dropout(0.3)(x, training=True)
         dropped_branches = DropPath(do_p, [True,]*len(branches), name=block_name + '_droppath')(branches, training=True)
-        for i, br in enumerate(dropped_branches):
-            tf.print(f'branch {i}: min', tf.reduce_min(br), 'max', tf.reduce_max(br))
-    # dropouts = [tf.transpose(tf.random.stateless_binomial((*(1,)*(len(branch.shape)-1), branch.shape[0]),
-    #                                        counts=[1.]*branch.shape[0],
-    #                                        seed=[tf.random.uniform([1], minval=0, maxval=10e6)[0]]*2,
-    #                                        probs=[0.5])) for branch in branches]
-    # dropouts = [dropout if tf.reduce_any(dropout) else rand_one_in_array(dropout) for dropout in dropouts]
-    # branches = [branch*dropouts[i] for i, branch in enumerate(branches)]
+        branches = dropped_branches
 
-    mixed = Concatenate(axis=channel_axis, name=block_name + '_mixed')(dropped_branches if net_type == NetType.mc_dp
-                                                                       else branches)
+    mixed = Concatenate(axis=channel_axis, name=block_name + '_mixed')(branches)
     up = conv2d_bn(mixed,
                    K.int_shape(x)[channel_axis],
                    1,
@@ -275,7 +265,7 @@ def InceptionResNetV2Same_do(include_top=True,
         min_size=139,
         data_format=K.image_data_format(),
         require_flatten=False,
-        weights=None) # weights=None to prevent input channels equality check
+        weights=None)  # weights=None to prevent input channels equality check
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -306,6 +296,10 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_pool = AveragePooling2D(3, strides=1, padding='same')(x)
     branch_pool = conv2d_bn(branch_pool, 64, 1)
     branches = [branch_0, branch_1, branch_2, branch_pool]
+    if net_type == NetType.mc_dp:
+        # print('MC_DP___________')
+        dropped_branches = DropPath(do_p, [True, True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        branches = dropped_branches
     channel_axis = 1 if K.image_data_format() == 'channels_first' else 3
     x = Concatenate(axis=channel_axis, name='mixed_5b')(branches)
 
@@ -325,6 +319,9 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_1 = conv2d_bn(branch_1, 384, 3, strides=2, padding='same')
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_pool]
+    if net_type == NetType.mc_dp:
+        dropped_branches = DropPath(do_p, [True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_6a')(branches)
 
     # 20x block17 (Inception-ResNet-B block): 17 x 17 x 1088
@@ -346,6 +343,9 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_2 = conv2d_bn(branch_2, 320, 3, strides=2, padding='same')
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_2, branch_pool]
+    if net_type == NetType.mc_dp:
+        dropped_branches = DropPath(do_p, [True, True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_7a')(branches)
 
     # 10x block8 (Inception-ResNet-C block): 8 x 8 x 2080
