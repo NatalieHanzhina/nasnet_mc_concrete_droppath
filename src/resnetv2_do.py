@@ -320,7 +320,7 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_pool]
     if net_type == NetType.mc_dp:
-        dropped_branches = DropPath(do_p, [True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, True, False], name='reduction-a_block_droppath')(branches, training=True)
         branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_6a')(branches)
 
@@ -344,7 +344,7 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_2, branch_pool]
     if net_type == NetType.mc_dp:
-        dropped_branches = DropPath(do_p, [True, True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, True, True, False], name='reduction-b_block_droppath')(branches, training=True)
         branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_7a')(branches)
 
