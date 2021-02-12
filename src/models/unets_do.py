@@ -1,4 +1,4 @@
-from models.xception_padding1 import Xception
+from models.xception_padding import Xception
 from models.xception_padding_do import Xception_do
 # from models.nasnet_do import NASNet_large_do
 # from models.nasnet_tf import build_nasnet_large

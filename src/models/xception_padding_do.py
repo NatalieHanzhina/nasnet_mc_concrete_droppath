@@ -119,7 +119,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     if K.image_data_format() != 'channels_last':
         warnings.warn('The Xception model is only available for the '
                       'input data format "channels_last" '
-                   -   '(width, height, channels). '
+                      '(width, height, channels). '
                       'However your settings specify the default '
                       'data format "channels_first" (channels, width, height). '
                       'You should set `image_data_format="channels_last"` in your Keras '
@@ -151,14 +151,14 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block1_conv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block1_conv1_act')(x)
     x = Conv2D(64, (3, 3), use_bias=False, name='block1_conv2', padding='same')(x)
     x = BatchNormalization(name='block1_conv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block1_conv2_act')(x)
 
@@ -167,7 +167,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     residual = BatchNormalization()(residual)
     if net_type == NetType.mc:
         residual = Dropout(dp_p)(residual, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
 
@@ -175,14 +175,14 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block2_sepconv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block2_sepconv2_act')(x)
     x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
     x = BatchNormalization(name='block2_sepconv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block2_pool')(x)
@@ -193,7 +193,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     residual = BatchNormalization()(residual)
     if net_type == NetType.mc:
         residual = Dropout(dp_p)(residual, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
 
@@ -202,14 +202,14 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block3_sepconv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block3_sepconv2_act')(x)
     x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv2')(x)
     x = BatchNormalization(name='block3_sepconv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block3_pool')(x)
@@ -220,23 +220,22 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     residual = BatchNormalization()(residual)
     if net_type == NetType.mc:
         residual = Dropout(dp_p)(residual, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
-
 
     x = Activation('relu', name='block4_sepconv1_act')(x)
     x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv1')(x)
     x = BatchNormalization(name='block4_sepconv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block4_sepconv2_act')(x)
     x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name='block4_sepconv2')(x)
     x = BatchNormalization(name='block4_sepconv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block4_pool')(x)
@@ -251,21 +250,21 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
         x = BatchNormalization(name=prefix + '_sepconv1_bn')(x)
         if net_type == NetType.mc:
             x = Dropout(dp_p)(x, training=True)
-        elif net_type == NetType.mc_dp:
+        elif net_type == NetType.mc_df:
             x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
         x = Activation('relu', name=prefix + '_sepconv2_act')(x)
         x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv2')(x)
         x = BatchNormalization(name=prefix + '_sepconv2_bn')(x)
         if net_type == NetType.mc:
             x = Dropout(dp_p)(x, training=True)
-        elif net_type == NetType.mc_dp:
+        elif net_type == NetType.mc_df:
             x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
         x = Activation('relu', name=prefix + '_sepconv3_act')(x)
         x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_sepconv3')(x)
         x = BatchNormalization(name=prefix + '_sepconv3_bn')(x)
         if net_type == NetType.mc:
             x = Dropout(dp_p)(x, training=True)
-        elif net_type == NetType.mc_dp:
+        elif net_type == NetType.mc_df:
             x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
         x = layers.add([x, residual])
@@ -275,7 +274,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     residual = BatchNormalization()(residual)
     if net_type == NetType.mc:
         residual = Dropout(dp_p)(residual, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
     x = Activation('relu', name='block13_sepconv1_act')(x)
@@ -283,14 +282,14 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block13_sepconv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block13_sepconv2_act')(x)
     x = SeparableConv2D(1024, (3, 3), padding='same', use_bias=False, name='block13_sepconv2')(x)
     x = BatchNormalization(name='block13_sepconv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block13_pool')(x)
@@ -300,7 +299,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block14_sepconv1_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block14_sepconv1_act')(x)
 
@@ -308,7 +307,7 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     x = BatchNormalization(name='block14_sepconv2_bn')(x)
     if net_type == NetType.mc:
         x = Dropout(dp_p)(x, training=True)
-    elif net_type == NetType.mc_dp:
+    elif net_type == NetType.mc_df:
         x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name='block14_sepconv2_act')(x)
 

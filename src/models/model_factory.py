@@ -26,7 +26,7 @@ def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
     elif network == 'resnet50_2':
         return resnet50_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnetv2':
-        return inception_resnet_v2_fpn(input_shape, channels=2, activation="sigmoid")
+        return inception_resnet_v2_fpn(input_shape, channels=2, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnetv2_mc_dp':
         return inception_resnet_v2_fpn_mc_dp(input_shape, channels=2, dp_p=dp_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnetv2_3':
