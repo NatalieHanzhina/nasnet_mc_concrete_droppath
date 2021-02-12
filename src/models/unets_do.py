@@ -449,7 +449,7 @@ def nasnet_fpn_mc_sch_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', 
     return nasnet_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
 
 
-def inception_resnet_v2_fpn(input_shape, channels=1, activation="sigmoid"):
+def inception_resnet_v2_fpn_old(input_shape, channels=1, activation="sigmoid"):
     inceresv2 = InceptionResNetV2Same(input_shape=input_shape, include_top=False)
     conv1, conv2, conv3, conv4, conv5 = inceresv2.output
 
@@ -474,6 +474,10 @@ def inception_resnet_v2_fpn(input_shape, channels=1, activation="sigmoid"):
         x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
     model = Model(inceresv2.input, x)
     return model
+
+
+def inception_resnet_v2_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoid"):
+    return inception_resnet_v2_fpn_do(input_shape, NetType.vanilla, channels, None, weights, activation)
 
 
 def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
