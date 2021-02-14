@@ -33,10 +33,10 @@ class DropPath(Layer):
                 training mode (adding dropout) or in inference mode (doing nothing).
     """
 
-    def __init__(self, paths_rate, drop_paths, seed=None, **kwargs):
+    def __init__(self, paths_rate, drop_paths_mask, seed=None, **kwargs):
         super(DropPath, self).__init__(**kwargs)
         self.drop_rate = paths_rate
-        self.drop_paths = drop_paths
+        self.drop_paths_mask = drop_paths_mask
         self.seed = seed
         self.supports_masking = True
 
@@ -44,33 +44,26 @@ class DropPath(Layer):
         if training is None:
             training = K.learning_phase()
 
-        drop_paths_count = np.sum(self.drop_paths)
-        selected_incdicies = np.random.choice(drop_paths_count, int(round(drop_paths_count * self.drop_rate)))
-        # tf.print('drop_indices:', tf.convert_to_tensor(selected_incdicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
-        if len(selected_incdicies) == drop_paths_count:
-            selected_incdicies = np.random.choice(drop_paths_count, drop_paths_count-1)
+        drop_paths_count = np.sum(self.drop_paths_mask)
+        drop_paths_flags = np.random.choice([0, 1], drop_paths_count, p=[self.drop_rate, 1-self.drop_rate])
+        selected_indicies = np.where(drop_paths_flags == 0)[0]
+        # tf.print('drop_indices:', tf.convert_to_tensor(selected_indicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
+        if len(selected_indicies) == drop_paths_count:
+            selected_indicies = np.random.choice(drop_paths_count, drop_paths_count - 1)
         drop_paths_counter = -1
         output = []
 
-        def dropped_inputs(input_to_drop):
-            return tf.nn.dropout(
-                input_to_drop,
-                noise_shape=tf.convert_to_tensor([1,]*len(input_to_drop.shape)),
-                seed=self.seed,
-                rate=1-1e-10)
         for i, inp in enumerate(inputs):
-            if self.drop_paths[i]:
+            if self.drop_paths_mask[i]:
                 drop_paths_counter += 1
-            # output.append(smart_cond(training and drop_paths_counter in selected_incdicies, lambda: dropped_inputs(inp),
-            #                          lambda: tf.identity(inp)))
             if training:
-                output.append(smart_cond(drop_paths_counter in selected_incdicies,
+                output.append(smart_cond(drop_paths_counter in selected_indicies,
                                          lambda: tf.math.multiply(inp, 0),
                                          lambda: tf.math.multiply(inp, 1.0 / (1 - self.drop_rate))))
             else:
                 output.append(tf.identity(inp))
 
-        for i in selected_incdicies:
+        for i in selected_indicies:
             tf.debugging.Assert(tf.math.reduce_max(output[i]) == 0., data=[tf.reduce_max(out) for out in output],
                                 summarize=3)
         # for i, br in enumerate(output):
@@ -82,8 +75,8 @@ class DropPath(Layer):
 
     def get_config(self):
         config = {
-            'paths_rate': self.drop_rate,
-            'drop_paths': self.drop_paths,
+            'drop_rate': self.drop_rate,
+            'drop_paths_mask': self.drop_paths_mask,
             'seed': self.seed
         }
         base_config = super(DropPath, self).get_config()
