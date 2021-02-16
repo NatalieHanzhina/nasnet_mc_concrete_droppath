@@ -144,6 +144,7 @@ class BaseMaskDatasetIterator(Iterator):
             id_in_archive = self.image_ids[image_index]
 
             img_path = self.image_paths[image_index]
+            #print(img_path, id_in_archive)
             if img_path.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.ppm')):
                 image = np.array(img_to_array(load_img(img_path)), "uint8")
             elif img_path.rfind('.nii.gz') or img_path.rfind('.nii') or os.path.isdir(img_path):

@@ -44,30 +44,29 @@ class DropPath(Layer):
         if training is None:
             training = K.learning_phase()
 
-        drop_paths_count = np.sum(self.drop_paths_mask)
-        drop_paths_flags = np.random.choice([0, 1], drop_paths_count, p=[self.drop_rate, 1-self.drop_rate])
-        selected_indicies = np.where(drop_paths_flags == 0)[0]
-        # tf.print('drop_indices:', tf.convert_to_tensor(selected_indicies), 'drop_len:', int(drop_paths_count*self.paths_rate))
-        if len(selected_indicies) == drop_paths_count:
-            selected_indicies = np.random.choice(drop_paths_count, drop_paths_count - 1)
-        drop_paths_counter = -1
-        output = []
-
-        for i, inp in enumerate(inputs):
-            if self.drop_paths_mask[i]:
-                drop_paths_counter += 1
-            if training:
-                output.append(smart_cond(drop_paths_counter in selected_indicies,
-                                         lambda: tf.math.multiply(inp, 0),
-                                         lambda: tf.math.multiply(inp, 1.0 / (1 - self.drop_rate))))
+        def dropped_inputs():
+            drop_paths_count = np.sum(self.drop_paths_mask)
+            rand_tens = tf.compat.v1.distributions.Bernoulli(1 - self.drop_rate).sample(sample_shape=len(inputs))
+            preserve_mask = 1 - tf.cast(self.drop_paths_mask, tf.int32)
+            rand_tens = tf.clip_by_value(rand_tens + preserve_mask, clip_value_min=0, clip_value_max=1)
+            if not tf.reduce_any(tf.gather(rand_tens, tf.where(self.drop_paths_mask)[:, 0]) == 1):
+                index_to_preserve = tf.where(self.drop_paths_mask)[:, 0][tf.random.uniform(shape=(),
+                                                                                      maxval=drop_paths_count,
+                                                                                      dtype=tf.int32)]
+                rand_tens += [int(i == index_to_preserve) for i in range(len(inputs))]
             else:
-                output.append(tf.identity(inp))
+                index_to_preserve = None
+            # tf.print(self.drop_paths_mask)
+            # tf.print('rnd_tens:', rand_tens)
+            scaled_rand_tens = tf.cast(rand_tens, dtype=tf.float32) / (1 - self.drop_rate)
+            outputs = [tf.multiply(a, b) for a, b in zip(inputs, tf.unstack(scaled_rand_tens))]
+            return outputs
 
-        for i in selected_indicies:
-            tf.debugging.Assert(tf.math.reduce_max(output[i]) == 0., data=[tf.reduce_max(out) for out in output],
-                                summarize=3)
-        # for i, br in enumerate(output):
-        #     tf.print(f'branch {i}: max', tf.math.reduce_max(br))
+
+        output = smart_cond(training, dropped_inputs, lambda: tf.identity(inputs))
+
+        # tf.print('Maxes before droppath', [tf.math.reduce_max(inp_path) for inp_path in inputs])
+        # tf.print('Maxes after droppath', [tf.math.reduce_max(out_path) for out_path in output])
         return output
 
     def compute_output_shape(self, input_shape):
