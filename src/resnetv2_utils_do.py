@@ -31,14 +31,13 @@ class DropPath(Layer):
             inputs: Input tensor (of any rank).
             training: Python boolean indicating whether the layer should behave in
                 training mode (adding dropout) or in inference mode (doing nothing).
-    """
+    """ #TODO: refactor docs
 
     def __init__(self, paths_rate, drop_paths_mask, seed=None, **kwargs):
         super(DropPath, self).__init__(**kwargs)
         self.drop_rate = paths_rate
         self.drop_paths_mask = drop_paths_mask
         self.seed = seed
-        self.supports_masking = True
 
     def call(self, inputs, training=None):
         if training is None:
@@ -51,8 +50,8 @@ class DropPath(Layer):
             rand_tens = tf.clip_by_value(rand_tens + preserve_mask, clip_value_min=0, clip_value_max=1)
             if not tf.reduce_any(tf.gather(rand_tens, tf.where(self.drop_paths_mask)[:, 0]) == 1):
                 index_to_preserve = tf.where(self.drop_paths_mask)[:, 0][tf.random.uniform(shape=(),
-                                                                                      maxval=drop_paths_count,
-                                                                                      dtype=tf.int32)]
+                                                                                           maxval=drop_paths_count,
+                                                                                           dtype=tf.int32)]
                 rand_tens += [int(i == index_to_preserve) for i in range(len(inputs))]
             else:
                 index_to_preserve = None
@@ -61,7 +60,6 @@ class DropPath(Layer):
             scaled_rand_tens = tf.cast(rand_tens, dtype=tf.float32) / (1 - self.drop_rate)
             outputs = [tf.multiply(a, b) for a, b in zip(inputs, tf.unstack(scaled_rand_tens))]
             return outputs
-
 
         output = smart_cond(training, dropped_inputs, lambda: tf.identity(inputs))
 
