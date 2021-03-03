@@ -146,7 +146,8 @@ def main():
         #                                                np.std(metrics['hard_dice_coef_ch1']), \
         #                                                np.std(metrics['hard_dice_coef'])
 
-        print(f'Performed {predictions_repetition} repetitions per sample')
+        print('Performed {predictions_repetition} repetitions per sample')
+        print(f'Dropout rate: {args.dropout_rate}')
         print(f'{weights[i]} evaluation results:')
         # print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
         print(f'{args.loss_function}: {loss_value:.4f}, '

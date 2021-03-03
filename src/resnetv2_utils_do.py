@@ -2,7 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Layer
-from tensorflow.python.keras.utils.tf_utils import smart_cond
+#from tensorflow.python.keras.utils.tf_utils import smart_cond
+from tensorflow.python.framework.smart_cond import smart_cond
 
 
 class DropPath(Layer):
@@ -57,7 +58,8 @@ class DropPath(Layer):
                 index_to_preserve = None
             # tf.print(self.drop_paths_mask)
             # tf.print('rnd_tens:', rand_tens)
-            scaled_rand_tens = tf.cast(rand_tens, dtype=tf.float32) / (1 - self.drop_rate)
+            scaled_rand_tens = tf.cast(rand_tens / tf.reduce_sum(rand_tens), dtype=tf.float32)
+            # tf.print(scaled_rand_tens)
             outputs = [tf.multiply(a, b) for a, b in zip(inputs, tf.unstack(scaled_rand_tens))]
             return outputs
 
