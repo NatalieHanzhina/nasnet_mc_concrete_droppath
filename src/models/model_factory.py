@@ -1,6 +1,6 @@
 from models.unets_do import densenet_fpn, inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, nasnet_fpn_mc_sch_dp, \
     resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn,\
-    xception_fpn, xception_fpn_mc, xception_fpn_mc_dp
+    resnext50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp
 
 
 def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
@@ -25,6 +25,8 @@ def make_model(network, input_shape, pretrained_weights, dp_p=0.3):
         return resnet101_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet50_2':
         return resnet50_fpn(input_shape, channels=2, activation="sigmoid")
+    elif network == 'resnext50':
+        return resnext50_fpn(input_shape, channels=2, cardinality=32, activation="sigmoid")
     elif network == 'resnetv2':
         return inception_resnet_v2_fpn(input_shape, channels=2, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnetv2_mc_dp':

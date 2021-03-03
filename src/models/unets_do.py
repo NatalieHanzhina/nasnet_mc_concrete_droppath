@@ -1,11 +1,11 @@
+from models.nasnet_do import NASNet_large_do
 from models.xception_padding import Xception
 from models.xception_padding_do import Xception_do
-# from models.nasnet_do import NASNet_large_do
-# from models.nasnet_tf import build_nasnet_large
 from resnets import ResNet101, ResNet50
 from resnets_do import ResNet152, ResNet152_do
 from resnetv2 import InceptionResNetV2Same
 from resnetv2_do import InceptionResNetV2Same_do
+from resnexts_do import ResNext50
 from tensorflow.keras import Model, Input
 from tensorflow.keras.applications import DenseNet169
 from tensorflow.keras.layers import Dropout, UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
@@ -290,6 +290,38 @@ def resnet101_fpn(input_shape, channels=1, activation="softmax"):
     conv2 = resnet_base.get_layer("res2c_relu").output
     conv3 = resnet_base.get_layer("res3b3_relu").output
     conv4 = resnet_base.get_layer("res4b22_relu").output
+    conv5 = resnet_base.get_layer("res5c_relu").output
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = UpSampling2D()(x)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    if activation == 'softmax':
+        name = 'mask_softmax'
+        x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
+    else:
+        x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
+    model = Model(img_input, x)
+    return model
+
+
+def resnext50_fpn(input_shape, channels=1, cardinality=32, activation="softmax"):
+    img_input = Input(input_shape)
+    resnet_base = ResNext50(img_input, cardinality=cardinality, include_top=True)
+    resnet_base.load_weights(download_resnet_imagenet("resnet50"))
+    conv1 = resnet_base.get_layer("conv1_relu").output
+    conv2 = resnet_base.get_layer("res2c_relu").output
+    conv3 = resnet_base.get_layer("res3d_relu").output
+    conv4 = resnet_base.get_layer("res4f_relu").output
     conv5 = resnet_base.get_layer("res5c_relu").output
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
