@@ -452,9 +452,10 @@ def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
     return model
 
 
-def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
+def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="softmax"):
     #nasnet = NASNet_large_do(input_shape=input_shape, net_type=net_type, dp_p=do_p, include_top=False, weights=weights)
-    nasnet = NASNet_large_do(input_shape=(331,331, 4), net_type=net_type, dp_p=do_p, include_top=False, weights=weights)
+    nasnet = NASNet_large_do(input_shape=(331, 331, 4), net_type=net_type, do_p=do_p, include_top=False,
+                             total_training_steps=total_training_steps, weights=weights)
 
     a = 1
     conv1 = nasnet.get_layer("normal_concat").output
@@ -464,21 +465,31 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet
     conv5 = nasnet.get_layer("bn").output
     a = 1
 
-def keras_nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
-    nasnet = build_nasnet_large(input_shape, include_top=False, weights=None)
-    donor_nasnet = NASNetLarge((331, 331, 3), include_top=False, weights='imagenet')
-    a = 1
-    #print(nasnet.summary)
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = UpSampling2D()(x)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    if activation == 'softmax':
+        name = 'mask_softmax'
+        x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
+    else:
+        x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
+    model = Model(nasnet.input, x)
+    return model
 
-    conv1 = nasnet.get_layer("normal_concat").output
-    conv2 = nasnet.get_layer("pool2_relu").output
-    conv3 = nasnet.get_layer("pool3_relu").output
-    conv4 = nasnet.get_layer("pool4_relu").output
-    conv5 = nasnet.get_layer("bn").output
-    a = 1
 
-def nasnet_fpn_mc_sch_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    return nasnet_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
+def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="sigmoid"):
+    return nasnet_fpn_do(input_shape, NetType.sdp, channels, do_p, total_training_steps, weights, activation)
 
 
 def inception_resnet_v2_fpn_old(input_shape, channels=1, activation="sigmoid"):

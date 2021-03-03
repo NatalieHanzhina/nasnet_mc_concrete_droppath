@@ -66,12 +66,13 @@ def main():
             model = make_model(args.network,
                                (None, None, args.channels),
                                pretrained_weights=args.pretrained_weights,
-                               dp_p=args.dropout_rate)
+                               do_p=args.dropout_rate)
     else:
         model = make_model(args.network,
                            (None, None, args.channels),
                            pretrained_weights=args.pretrained_weights,
-                           dp_p=args.dropout_rate)
+                           total_training_steps=args.epochs*args.steps_per_epoch,
+                           do_p=args.dropout_rate)
     if args.weights is None:
         print('No weights passed, training from scratch')
     else:
@@ -113,8 +114,8 @@ def main():
                                      period=args.save_period,
                                      save_best_only=False,
                                      save_weights_only=True)
-    if args.multi_gpu:
-        model = multi_gpu_model(model, len(gpus))
+    # if args.multi_gpu:
+    #     model = multi_gpu_model(model, len(gpus))
     model.compile(loss=make_loss(args.loss_function),
                   optimizer=optimizer,
                   metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])

@@ -30,6 +30,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 from keras_applications.imagenet_utils import _obtain_input_shape
+from models.nasnet_utils_do import ScheduledDropout
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Activation
@@ -56,8 +57,8 @@ TF_NASNET_LARGE_WEIGHT_PATH = 'https://storage.googleapis.com/tensorflow/keras-a
 TF_NASNET_LARGE_WEIGHT_PATH_NO_TOP = 'https://storage.googleapis.com/tensorflow/keras-applications/nasnet/NASNet-large-no-top.h5'
 
 
-def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', input_tensor=None,
-                    input_shape=None, penultimate_filters=4032, num_blocks=6, stem_block_filters=96,
+def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', input_tensor=None,
+                    input_shape=None, total_training_steps=None, penultimate_filters=4032, num_blocks=6, stem_block_filters=96,
                     skip_reduction=True, filter_multiplier=2, pooling=None, classes=1000):
     """Instantiates a NASNet model.
 
@@ -73,17 +74,35 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
     # Arguments
         include_top: whether to include the fully-connected
             layer at the top of the network.
-        weights: one of `None` (random initialization),
-              'imagenet' (pre-training on ImageNet),
-              or the path to the weights file to be loaded.
+        weights: `None` (random initialization) or
+          `imagenet` (ImageNet weights)
+          For loading `imagenet` weights, `input_shape` should be (331, 331, 3)
         input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
             to use as image input for the model.
-        input_shape: optional shape tuple, only to be specified
-            if `include_top` is False (otherwise the input shape
-            has to be `(299, 299, 3)`.
-            It should have exactly 3 inputs channels,
-            and width and height should be no smaller than 71.
-            E.g. `(150, 150, 3)` would be one valid value.
+        input_shape: Optional shape tuple, only to be specified
+          if `include_top` is False (otherwise the input shape
+          has to be `(331, 331, 3)` for NASNetLarge.
+          It should have exactly 3 inputs channels,
+          and width and height should be no smaller than 32.
+          E.g. `(224, 224, 3)` would be one valid value.
+        penultimate_filters: Number of filters in the penultimate layer.
+          NASNet models use the notation `NASNet (N @ P)`, where:
+          -   N is the number of blocks
+          -   P is the number of penultimate filters
+        num_blocks: Number of repeated blocks of the NASNet model.
+          NASNet models use the notation `NASNet (N @ P)`, where:
+          -   N is the number of blocks
+          -   P is the number of penultimate filters
+        stem_block_filters: Number of filters in the initial stem block
+        skip_reduction: Whether to skip the reduction step at the tail
+          end of the network.
+        filter_multiplier: Controls the width of the network.
+          - If `filter_multiplier` < 1.0, proportionally decreases the number
+            of filters in each layer.
+          - If `filter_multiplier` > 1.0, proportionally increases the number
+            of filters in each layer.
+          - If `filter_multiplier` = 1, default number of filters from the
+            paper are used at each layer.
         pooling: Optional pooling mode for feature extraction
             when `include_top` is `False`.
             - `None` means that the output of the model will be
@@ -124,7 +143,7 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
     if K.image_data_format() != 'channels_last':
         warnings.warn('The NASNet model is only available for the '
                       'input data format "channels_last" '
-                   -   '(width, height, channels). '
+                      '(width, height, channels). '
                       'However your settings specify the default '
                       'data format "channels_first" (channels, width, height). '
                       'You should set `image_data_format="channels_last"` in your Keras '
@@ -163,29 +182,52 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
                use_bias=False, name='stem_conv1', kernel_initializer='he_normal')(img_input)
     x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='stem_bn1')(x)
     if net_type == NetType.mc:
-        x = Dropout(dp_p)(x, training=True)
+        x = Dropout(do_p)(x, training=True)
     elif net_type == NetType.mc_df:
-        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
 
+    total_num_cells = 26
+    cell_counter = 0
     p = None
-    x, p = _reduction_a_cell_do(x, p, filters // (filter_multiplier ** 2),  net_type=net_type, block_id='stem_1')
-    x, p = _reduction_a_cell_do(x, p, filters // filter_multiplier, net_type=net_type, block_id='stem_2')
+    x, p = _reduction_a_cell_do(x, p, filters // (filter_multiplier ** 2), net_type=net_type, cell_num=cell_counter,
+                                total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                block_id='stem_1')
+    cell_counter += 1
+    x, p = _reduction_a_cell_do(x, p, filters // filter_multiplier, net_type=net_type, cell_num=cell_counter,
+                                total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                block_id='stem_2')
+    cell_counter += 1
 
     for i in range(num_blocks):
-        x, p = _normal_a_cell_do(x, p, filters, net_type=net_type, block_id='%d' % (i))
+        x, p = _normal_a_cell_do(x, p, filters, net_type=net_type, cell_num=cell_counter,
+                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                 block_id='%d' % (i))
+        cell_counter += 1
 
-    x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, block_id='reduce_%d' % (num_blocks))
+    x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, cell_num=cell_counter,
+                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                 block_id='reduce_%d' % (num_blocks))
+    cell_counter += 1
 
     p = p0 if not skip_reduction else p
 
     for i in range(num_blocks):
-        x, p = _normal_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, block_id='%d' % (num_blocks + i + 1))
+        x, p = _normal_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, cell_num=cell_counter,
+                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                 block_id='%d' % (num_blocks + i + 1))
+        cell_counter += 1
 
-    x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, block_id='reduce_%d' % (2 * num_blocks))
+    x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, cell_num=cell_counter,
+                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                 block_id='reduce_%d' % (2 * num_blocks))
+    cell_counter += 1
     p = p0 if not skip_reduction else p
 
     for i in range(num_blocks):
-        x, p = _normal_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, block_id='%d' % (2 * num_blocks + i + 1))
+        x, p = _normal_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, cell_num=cell_counter,
+                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                 block_id='%d' % (2 * num_blocks + i + 1))
+        cell_counter += 1
 
     x = Activation('relu')(x)
 
@@ -217,7 +259,7 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
                                       skip_reduction=skip_reduction,
                                       pooling=pooling,
                                       classes=classes)
-    return model #TODO: remove to implement weighs copy by name
+    #return model #TODO: remove to implement weighs copy by name
 
     # load weights
     if weights is not None and input_shape[-1] > 3:
@@ -241,22 +283,24 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
                 f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels for NASNet backbone')
             donor_model.load_weights(weights_path)
 
-            j = 1  # ignore input layers
-            for i, l in enumerate(model.layers[1:]):
-                if j >= len(donor_model.layers):
+            donor_model_weight_layers = [d_l for d_l in donor_model.layers if len(d_l.weights) > 0]
+            j = 0
+            for i, l in enumerate([l for l in model.layers if len(l.weights) > 0]):
+                if j >= len(donor_model_weight_layers):
                     break
-                d_l = donor_model.layers[j]
+                d_l = donor_model_weight_layers[j]
                 # if l.name != d_l.name: # incorrect names
-                if 'dropout' in l.name and 'dropout' not in d_l.name:
+                if 'dropout' in l.name and 'dropout' not in d_l.name or \
+                        'droppath' in l.name and 'droppath' not in d_l.name:
                     continue
-                j += 1
                 if i == 0:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     l.weights[0].assign(new_w)
                 else:
                     for (w, d_w) in zip(l.weights, d_l.weights):
                         w.assign(d_w)
-            assert j == len(donor_model.layers)
+                j += 1
+            assert j == len(donor_model_weight_layers)
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')
@@ -287,8 +331,8 @@ def NASNet_large_do(net_type, include_top=True, dp_p=0.3, weights='imagenet', in
     return model
 
 
-#def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=(1, 1), dp_p=0.3, block_id=None):
-def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=(1, 1), dp_p=None, block_id=None):
+def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=(1, 1), do_p=None, cell_num=None,
+                             total_num_cells=None, total_training_steps=None, block_id=None):
     """Adds 2 blocks of [relu-separable conv-batchnorm].
 
     Args:
@@ -313,18 +357,30 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
                                    padding=conv_pad, use_bias=False, kernel_initializer='he_normal')(x)
         x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='separable_conv_1_bn_%s' % (block_id))(x)
         if net_type == NetType.mc:
-            x = Dropout(dp_p)(x, training=True)
+            x = Dropout(do_p)(x, training=True)
         elif net_type == NetType.mc_df:
-            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
         x = Activation('relu')(x)
         x = SeparableConv2D(filters, kernel_size, name='separable_conv_2_%s' % block_id, padding='same',
                                    use_bias=False, kernel_initializer='he_normal')(x)
         x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='separable_conv_2_bn_%s' % (block_id))(x)
+        if net_type == NetType.sdp:
+            if cell_num is None or total_num_cells is None:
+                raise ValueError('Please specify cell number for correct Scheduled MC dropout')
+            x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
+                                 total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
+                (x, training=None)
         if net_type == NetType.mc:
-            x = Dropout(dp_p)(x, training=True)
+            x = Dropout(do_p)(x, training=True)
         elif net_type == NetType.mc_df:
-            x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
         x = Activation('relu')(x)
+        # if net_type == NetType.sdp:
+        #     if cell_num is None or total_num_cells is None:
+        #         raise ValueError('Please specify cell number for correct Scheduled MC dropout')
+        #     x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
+        #                          total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
+        #         (x, training=None)
     return x
 
 
@@ -412,7 +468,8 @@ def _adjust_block(p, ip, filters, block_id=None):
     return p
 
 
-def _normal_a_cell_do(ip, p, filters, net_type, dp_p=0.3, block_id=None):
+def _normal_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells,
+                      total_training_steps, do_p=0.3, block_id=None):
     """Adds a Normal cell for NASNet-A (Fig. 4 in the paper).
 
     Args:
@@ -433,31 +490,37 @@ def _normal_a_cell_do(ip, p, filters, net_type, dp_p=0.3, block_id=None):
                           use_bias=False, kernel_initializer='he_normal')(h)
         h = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='normal_bn_1_%s' % block_id)(h)
         if net_type == NetType.mc:
-            h = Dropout(dp_p)(h, training=True)
+            h = Dropout(do_p)(h, training=True)
         elif net_type == NetType.mc_df:
-            h = Dropout(dp_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
+            h = Dropout(do_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
 
         with K.name_scope('block_1'):
-            x1_1 = _separable_conv_block_do(h, filters, net_type, kernel_size=(5, 5), dp_p=dp_p, block_id='normal_left1_%s' % block_id)
-            x1_2 = _separable_conv_block_do(p, filters, net_type, dp_p=dp_p, block_id='normal_right1_%s' % block_id)
-
+            x1_1 = _separable_conv_block_do(h, filters, net_type, kernel_size=(5, 5), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                            block_id='normal_left1_%s' % block_id)
+            x1_2 = _separable_conv_block_do(p, filters, net_type, do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                            block_id='normal_right1_%s' % block_id)
             if net_type == NetType.mc_dp:
                 # print('MC_DP___________')
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x1_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_1.shape))])(x1_1, training=True)
+                    x1_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x1_1.shape))])(x1_1, training=True)
                 else:
-                    x1_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_2.shape))])(x1_2, training=True)
+                    x1_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x1_2.shape))])(x1_2, training=True)
             x1 = layers.add([x1_1, x1_2], name='normal_add_1_%s' % block_id)
 
         with K.name_scope('block_2'):
-            x2_1 = _separable_conv_block_do(p, filters, net_type, (5, 5), dp_p=dp_p, block_id='normal_left2_%s' % block_id)
-            x2_2 = _separable_conv_block_do(p, filters, net_type, (3, 3), dp_p=dp_p, block_id='normal_right2_%s' % block_id)
-
+            x2_1 = _separable_conv_block_do(p, filters, net_type, (5, 5), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                            block_id='normal_left2_%s' % block_id)
+            x2_2 = _separable_conv_block_do(p, filters, net_type, (3, 3), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                            block_id='normal_right2_%s' % block_id)
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x2_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
+                    x2_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
                 else:
-                    x2_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
+                    x2_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
             x2 = layers.add([x2_1, x2_2], name='normal_add_2_%s' % block_id)
 
         with K.name_scope('block_3'):
@@ -466,31 +529,31 @@ def _normal_a_cell_do(ip, p, filters, net_type, dp_p=0.3, block_id=None):
             p_add = p
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x3 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3.shape))])(x3, training=True)
+                    x3 = Dropout(do_p, noise_shape=[1 for _ in range(len(x3.shape))])(x3, training=True)
                 else:
-                    p_add = Dropout(dp_p, noise_shape=[1 for _ in range(len(p.shape))])(p, training=True)
+                    p_add = Dropout(do_p, noise_shape=[1 for _ in range(len(p.shape))])(p, training=True)
             x3 = layers.add([x3, p_add], name='normal_add_3_%s' % block_id)
 
         with K.name_scope('block_4'):
             x4_1 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='normal_left4_%s' % block_id)(p)
             x4_2 = AveragePooling2D((3, 3), strides=(1, 1), padding='same',
                                     name='normal_right4_%s' % block_id)(p)
-
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x4_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4_1.shape))])(x4_1, training=True)
+                    x4_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x4_1.shape))])(x4_1, training=True)
                 else:
-                    x4_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4_2.shape))])(x4_2, training=True)
+                    x4_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x4_2.shape))])(x4_2, training=True)
             x4 = layers.add([x4_1, x4_2], name='normal_add_4_%s' % block_id)
 
         with K.name_scope('block_5'):
-            x5 = _separable_conv_block_do(h, filters, net_type, dp_p=dp_p, block_id='normal_left5_%s' % block_id)
-
+            x5 = _separable_conv_block_do(h, filters, net_type, do_p=do_p, cell_num=cell_num,
+                                          total_num_cells=total_num_cells, total_training_steps=total_training_steps,
+                                          block_id='normal_left5_%s' % block_id)
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x5 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5.shape))])(x5, training=True)
+                    x5 = Dropout(do_p, noise_shape=[1 for _ in range(len(x5.shape))])(x5, training=True)
                 else:
-                    h = Dropout(dp_p, noise_shape=[1 for _ in range(len(h.shape))])(h, training=True)
+                    h = Dropout(do_p, noise_shape=[1 for _ in range(len(h.shape))])(h, training=True)
             x5 = layers.add([x5, h], name='normal_add_5_%s' % block_id)
 
         x = layers.concatenate([p, x1, x2, x3, x4, x5], name='normal_concat_%s' % block_id)     #TODO: drop x1, x2, x5
@@ -546,7 +609,7 @@ def _normal_a_cell(ip, p, filters, block_id=None):
     return x, ip
 
 
-def _reduction_a_cell_do(ip, p, filters, net_type, dp_p=0.3, block_id=None):
+def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, total_training_steps, do_p=0.3, block_id=None):
     """Adds a Reduction cell for NASNet-A (Fig. 4 in the paper).
 
     Args:
@@ -567,71 +630,73 @@ def _reduction_a_cell_do(ip, p, filters, net_type, dp_p=0.3, block_id=None):
                    use_bias=False, kernel_initializer='he_normal')(h)
         h = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='reduction_bn_1_%s' % block_id)(h)
         if net_type == NetType.mc:
-            h = Dropout(dp_p)(h, training=True)
+            h = Dropout(do_p)(h, training=True)
         elif net_type == NetType.mc_df:
-            h = Dropout(dp_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
+            h = Dropout(do_p, noise_shape=(h.shape[0], 1, 1, h.shape[-1]))(h, training=True)
         h3 = ZeroPadding2D(padding=correct_pad(h, 3), name='reduction_pad_1_%s' % block_id)(h)
 
         with K.name_scope('block_1'):
-            x1_1 = _separable_conv_block_do(h, filters, net_type, (5, 5), strides=(2, 2), dp_p=dp_p,
+            x1_1 = _separable_conv_block_do(h, filters, net_type, (5, 5), strides=(2, 2), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_left1_%s' % block_id)
-            x1_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), dp_p=dp_p,
+            x1_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right1_%s' % block_id)
-
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x1_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_1.shape))],
+                    x1_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x1_1.shape))],
                                    name='reduction_left1_mc_dropout_%s' % block_id)(x1_1, training=True)
                 else:
-                    x1_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x1_2.shape))],
+                    x1_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x1_2.shape))],
                                    name='reduction_right1_mc_dropout_%s' % block_id)(x1_2, training=True)
             x1 = layers.add([x1_1, x1_2], name='reduction_add_1_%s' % block_id)
 
         with K.name_scope('block_2'):
             x2_1 = MaxPooling2D((3, 3), strides=(2, 2), padding='valid', name='reduction_left2_%s' % block_id)(h3)
-            x2_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), dp_p=dp_p,
+            x2_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right2_%s' % block_id)
-
-            if tf.random.uniform(shape=()).numpy() >= 0.5:
-                x2_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
-            else:
-                x2_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x2_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x2_1.shape))])(x2_1, training=True)
+                else:
+                    x2_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x2_2.shape))])(x2_2, training=True)
             x2 = layers.add([x2_1, x2_2], name='reduction_add_2_%s' % block_id)
 
         with K.name_scope('block_3'):
-            x3_1 = AveragePooling2D((3, 3), strides=(2, 2), padding='valid',
-                                           name='reduction_left3_%s' % block_id)(h3)
-            x3_2 = _separable_conv_block_do(p, filters, net_type, (5, 5), strides=(2, 2), dp_p=dp_p,
+            x3_1 = AveragePooling2D((3, 3), strides=(2, 2), padding='valid', name='reduction_left3_%s' % block_id)(h3)
+            x3_2 = _separable_conv_block_do(p, filters, net_type, (5, 5), strides=(2, 2), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right3_%s' % block_id)
-
-            if tf.random.uniform(shape=()).numpy() >= 0.5:
-                x3_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3_1.shape))])(x3_1, training=True)
-            else:
-                x3_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x3_2.shape))])(x3_2, training=True)
+            if net_type == NetType.mc_dp:
+                if tf.random.uniform(shape=()).numpy() >= 0.5:
+                    x3_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x3_1.shape))])(x3_1, training=True)
+                else:
+                    x3_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x3_2.shape))])(x3_2, training=True)
             x3 = layers.add([x3_1, x3_2], name='reduction_add3_%s' % block_id)
 
         with K.name_scope('block_4'):
-            x4 = AveragePooling2D((3, 3), strides=(1, 1), padding='same',
-                                         name='reduction_left4_%s' % block_id)(x1)
+            x4 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='reduction_left4_%s' % block_id)(x1)
             x2_add = x2
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x2_add = Dropout(dp_p, noise_shape=[1 for _ in range(len(x2.shape))])(x2, training=True)
+                    x2_add = Dropout(do_p, noise_shape=[1 for _ in range(len(x2.shape))])(x2, training=True)
                 else:
-                    x4 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x4.shape))])(x4, training=True)
+                    x4 = Dropout(do_p, noise_shape=[1 for _ in range(len(x4.shape))])(x4, training=True)
             x4 = layers.add([x2_add, x4])
 
         with K.name_scope('block_5'):
-            x5_1 = _separable_conv_block_do(x1, filters, net_type, (3, 3), dp_p=dp_p,
+            x5_1 = _separable_conv_block_do(x1, filters, net_type, (3, 3), do_p=do_p, cell_num=cell_num,
+                                            total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_left4_%s' % block_id)
             x5_2 = MaxPooling2D((3, 3), strides=(2, 2), padding='valid',
                                 name='reduction_right5_%s' % block_id)(h3)
 
             if net_type == NetType.mc_dp:
                 if tf.random.uniform(shape=()).numpy() >= 0.5:
-                    x5_1 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5_1.shape))])(x5_1, training=True)
+                    x5_1 = Dropout(do_p, noise_shape=[1 for _ in range(len(x5_1.shape))])(x5_1, training=True)
                 else:
-                    x5_2 = Dropout(dp_p, noise_shape=[1 for _ in range(len(x5_2.shape))])(x5_2, training=True)
+                    x5_2 = Dropout(do_p, noise_shape=[1 for _ in range(len(x5_2.shape))])(x5_2, training=True)
             x5 = layers.add([x5_1, x5_2], name='reduction_add4_%s' % block_id)
 
         x = layers.concatenate([x2, x3, x4, x5], name='reduction_concat_%s' % block_id)     #TODO: drop x2, x3, x5
@@ -763,9 +828,6 @@ def get_donor_model(include_top=True, input_tensor=None, input_shape=None, penul
         inputs = img_input
 
     return Model(inputs, x, name='donor_NASNet')
-
-class Model_nasnet(Model):
-
 
 
 if __name__ == '__main__':
