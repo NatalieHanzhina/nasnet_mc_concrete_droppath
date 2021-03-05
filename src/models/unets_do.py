@@ -202,15 +202,6 @@ def resnet152_fpn(input_shape, channels=1, weights="imagenet", activation="softm
 
 
 def resnet152_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
-    # if weights == 'imagenet':
-    #     weights_file = download_resnet_imagenet("resnet152")
-    # elif weights is None:
-    #     weights_file = None
-    # else:
-    #     raise NotImplementedError('Only imagenet weights can be loaded')
-
-
-    #print(net_type, '--------')
     resnet_base = ResNet152_do(input_shape=input_shape, include_top=True, net_type=net_type, do_p=do_p,
                                weights=weights)
     conv1 = resnet_base.get_layer("conv1_relu").output
@@ -453,16 +444,13 @@ def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
 
 
 def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="softmax"):
-    #nasnet = NASNet_large_do(input_shape=input_shape, net_type=net_type, dp_p=do_p, include_top=False, weights=weights)
-    nasnet = NASNet_large_do(input_shape=(331, 331, 4), net_type=net_type, do_p=do_p, include_top=False,
+    nasnet = NASNet_large_do(input_shape=input_shape, net_type=net_type, do_p=do_p, include_top=False,
                              total_training_steps=total_training_steps, weights=weights)
-
-    a = 1
-    conv1 = nasnet.get_layer("normal_concat").output
-    conv2 = nasnet.get_layer("pool2_relu").output
-    conv3 = nasnet.get_layer("pool3_relu").output
-    conv4 = nasnet.get_layer("pool4_relu").output
-    conv5 = nasnet.get_layer("bn").output
+    conv1 = nasnet.get_layer("activation").output  # ("stem_bn1").output
+    conv2 = nasnet.get_layer("reduction_concat_stem_1").output
+    conv3 = nasnet.get_layer("activation_134").output  # ("normal_concat_5").output
+    conv4 = nasnet.get_layer("activation_252").output  # ("normal_concat_12").output  # shape: (batch_size, 16, 16, channels)
+    conv5 = nasnet.get_layer("normal_concat_18").output  # ("normal_concat_18").output  # shape: (batch_size, 8, 8, channels)
     a = 1
 
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
@@ -488,7 +476,9 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_st
     return model
 
 
-def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="sigmoid"):
+def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet', activation="sigmoid"):
+    if resize_size is not None:
+        input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
     return nasnet_fpn_do(input_shape, NetType.sdp, channels, do_p, total_training_steps, weights, activation)
 
 

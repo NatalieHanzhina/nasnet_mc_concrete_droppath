@@ -185,6 +185,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
         x = Dropout(do_p)(x, training=True)
     elif net_type == NetType.mc_df:
         x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    #conv1
 
     total_num_cells = 26
     cell_counter = 0
@@ -193,6 +194,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                 block_id='stem_1')
     cell_counter += 1
+    #conv2
     x, p = _reduction_a_cell_do(x, p, filters // filter_multiplier, net_type=net_type, cell_num=cell_counter,
                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                 block_id='stem_2')
@@ -203,7 +205,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                  block_id='%d' % (i))
         cell_counter += 1
-
+    #conv3
     x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                  block_id='reduce_%d' % (num_blocks))
@@ -216,7 +218,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                  block_id='%d' % (num_blocks + i + 1))
         cell_counter += 1
-
+    #conv4
     x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                  block_id='reduce_%d' % (2 * num_blocks))
@@ -228,7 +230,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                  block_id='%d' % (2 * num_blocks + i + 1))
         cell_counter += 1
-
+    #conv5
     x = Activation('relu')(x)
 
     if include_top:
@@ -364,23 +366,24 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
         x = SeparableConv2D(filters, kernel_size, name='separable_conv_2_%s' % block_id, padding='same',
                                    use_bias=False, kernel_initializer='he_normal')(x)
         x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='separable_conv_2_bn_%s' % (block_id))(x)
-        if net_type == NetType.sdp:
-            if cell_num is None or total_num_cells is None:
-                raise ValueError('Please specify cell number for correct Scheduled MC dropout')
-            x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
-                                 total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
-                (x, training=None)
-        if net_type == NetType.mc:
-            x = Dropout(do_p)(x, training=True)
-        elif net_type == NetType.mc_df:
-            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
-        x = Activation('relu')(x)
         # if net_type == NetType.sdp:
         #     if cell_num is None or total_num_cells is None:
         #         raise ValueError('Please specify cell number for correct Scheduled MC dropout')
         #     x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
         #                          total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
         #         (x, training=None)
+        if net_type == NetType.mc:
+            x = Dropout(do_p)(x, training=True)
+        elif net_type == NetType.mc_df:
+            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Activation('relu')(x)
+
+        if net_type == NetType.sdp:
+            if cell_num is None or total_num_cells is None:
+                raise ValueError('Please specify cell number for correct Scheduled MC dropout')
+            x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
+                                 total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
+                (x, training=None)
     return x
 
 
