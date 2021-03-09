@@ -178,7 +178,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
             penultimate_filters)
     filters = penultimate_filters // 24
 
-    x = Conv2D(stem_block_filters, (3, 3), strides=(2, 2), padding="valid",
+    x = Conv2D(stem_block_filters, (3, 3), strides=(2, 2), padding="same",
                use_bias=False, name='stem_conv1', kernel_initializer='he_normal')(img_input)
     x = BatchNormalization(momentum=0.9997, epsilon=1e-3, name='stem_bn1')(x)
     if net_type == NetType.mc:

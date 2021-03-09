@@ -79,6 +79,7 @@ class ScheduledDropout(Layer):
             # if current_step is None:
             #     current_step = tf.compat.v1.train.get_or_create_global_step()
             current_step = tf.convert_to_tensor(tf.compat.v1.train.get_or_create_global_step())
+            tf.compat.v1.get_variable_scope().reuse_variables()
             current_step = tf.cast(current_step, tf.float32)
             drop_path_burn_in_steps = self._total_training_steps
             current_ratio = current_step / drop_path_burn_in_steps

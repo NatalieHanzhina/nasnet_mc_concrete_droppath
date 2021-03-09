@@ -170,7 +170,6 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
     elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
 
-
     x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv1')(x)
     x = BatchNormalization(name='block2_sepconv1_bn')(x)
     if net_type == NetType.mc:
@@ -195,7 +194,6 @@ def Xception_do(net_type, include_top=True, dp_p=0.3, weights='imagenet',
         residual = Dropout(dp_p)(residual, training=True)
     elif net_type == NetType.mc_df:
         residual = Dropout(dp_p, noise_shape=(residual.shape[0], 1, 1, residual.shape[-1]))(residual, training=True)
-
 
     x = Activation('relu', name='block3_sepconv1_act')(x)
     x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False, name='block3_sepconv1')(x)
