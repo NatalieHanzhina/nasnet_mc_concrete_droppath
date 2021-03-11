@@ -40,7 +40,10 @@ if __name__ == '__main__':
     weights = [os.path.join(args.models_dir, m) for m in args.models]
     models = []
     for w in weights:
-        model = make_model(args.network, (None, None, args.channels), pretrained_weights=args.pretrained_weights)
+        model = make_model(args.network,
+                           (None, None, args.channels),
+                           pretrained_weights=args.pretrained_weights,
+                           resize_size=(args.resize_size, args.resize_size))
         print("Building model {} from weights {} ".format(args.network, w))
         model.load_weights(w)
         models.append(model)

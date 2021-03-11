@@ -8,9 +8,9 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
         return densenet_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'densenet169_softmax':
         return densenet_fpn(input_shape, channels=3, activation="softmax")
-    elif network == 'nasnet':
+    elif network == 'nasnet_sch_dp':
         return nasnet_fpn(input_shape, channels=2, weights=pretrained_weights, **kwargs)
-    elif network == 'nasnet_mc_sch_dp':
+    elif network == 'nasnet_mc_sch_dp':     #  does not support scheduling dropout. Used for shceduled mc inferences sheduled-trained models with droppath
         return nasnet_fpn_mc_sch_dp(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, **kwargs)
     if network == 'resnet101_softmax':
         return resnet101_fpn(input_shape, channels=3, activation="softmax")

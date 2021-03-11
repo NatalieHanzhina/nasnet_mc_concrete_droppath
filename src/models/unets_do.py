@@ -479,14 +479,15 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_st
 def nasnet_fpn(input_shape, channels=1, resize_size=None, total_training_steps=None, weights='imagenet', activation="sigmoid"):
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
-    return nasnet_fpn_do(input_shape, NetType.vanilla, channels, total_training_steps=total_training_steps,
+    return nasnet_fpn_do(input_shape, NetType.sdp, channels, total_training_steps=total_training_steps,
                          weights=weights, activation=activation)
 
 
-def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet', activation="sigmoid"):
+def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None,
+                         weights='imagenet', activation="sigmoid"):
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
-    return nasnet_fpn_do(input_shape, NetType.sdp, channels, do_p, total_training_steps, weights, activation)
+    return nasnet_fpn_do(input_shape, NetType.mc_dp, channels, do_p, total_training_steps, weights, activation)
 
 
 def inception_resnet_v2_fpn_old(input_shape, channels=1, activation="sigmoid"):

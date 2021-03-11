@@ -71,9 +71,9 @@ def main():
     model = make_model(args.network,
                        (None, None, args.channels),
                        pretrained_weights=args.pretrained_weights,
-                       total_training_steps=args.epochs*args.steps_per_epoch,
+                       do_p=args.dropout_rate,
                        resize_size=(args.resize_size, args.resize_size),
-                       do_p=args.dropout_rate)
+                       total_training_steps=args.epochs*args.steps_per_epoch)
     if args.weights is None:
         print('No weights passed, training from scratch')
     else:
