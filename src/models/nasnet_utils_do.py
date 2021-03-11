@@ -64,7 +64,7 @@ class ScheduledDropout(Layer):
     def _compute_scheduled_dropout_rate(self):
         drop_rate = self.drop_rate
         # assert drop_connect_version in ['v1', 'v2', 'v3']
-        if True:  #drop_connect_version in ['v2', 'v3']:
+        if self._total_num_cells is not None:  #drop_connect_version in ['v2', 'v3']:
             # Scale keep prob by layer number
             assert self._cell_num != -1
             # The added 2 is for the reduction cells
@@ -74,7 +74,7 @@ class ScheduledDropout(Layer):
             #     with tf.device('/cpu:0'):
             #         tf.summary.scalar('layer_ratio', layer_ratio)
             drop_rate = layer_ratio * drop_rate
-        if True:  #drop_connect_version in ['v1', 'v3']:
+        if self._total_training_steps is not None:  #drop_connect_version in ['v1', 'v3']:
             # Decrease the keep probability over time
             # if current_step is None:
             #     current_step = tf.compat.v1.train.get_or_create_global_step()

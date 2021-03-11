@@ -17,7 +17,7 @@ import tensorflow as tf
 
 tf.random.set_seed(1)
 import timeit
-from tensorflow.keras.utils import multi_gpu_model
+# from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
@@ -54,8 +54,8 @@ if __name__ == '__main__':
 
     for i, model in enumerate(models):
         print(f'Evaluating {weights[i]} model')
-        if args.multi_gpu:
-            model = multi_gpu_model(model. len(gpus))
+        # if args.multi_gpu:
+        #     model = multi_gpu_model(model. len(gpus))
 
         model.compile(loss=make_loss(args.loss_function),
                   optimizer=optimizer,

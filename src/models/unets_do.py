@@ -444,6 +444,7 @@ def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
 
 
 def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="softmax"):
+    print(weights)
     nasnet = NASNet_large_do(input_shape=input_shape, net_type=net_type, do_p=do_p, include_top=False,
                              total_training_steps=total_training_steps, weights=weights)
     conv1 = nasnet.get_layer("activation").output  # ("stem_bn1").output

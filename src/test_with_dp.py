@@ -20,7 +20,7 @@ import tensorflow as tf
 tf.random.set_seed(1)
 import timeit
 from tensorflow.keras.metrics import Mean
-from tensorflow.keras.utils import multi_gpu_model
+# from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.optimizers import RMSprop
 
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
@@ -54,7 +54,8 @@ def main():
             model = make_model(args.network,
                                (None, None, args.channels),
                                pretrained_weights=args.pretrained_weights,
-                               do_p=args.dropout_rate)
+                               do_p=args.dropout_rate,
+                               resize_size=(args.resize_size, args.resize_size))
             print("Building model {} from weights {} ".format(args.network, w))
             model.load_weights(w)
         models.append(model)
@@ -70,8 +71,8 @@ def main():
 
     for i, model in enumerate(models):
         print(f'Evaluating {weights[i]} model')
-        if args.multi_gpu:
-            model = multi_gpu_model(model. len(gpus))
+        # if args.multi_gpu:
+        #     model = multi_gpu_model(model. len(gpus))
 
         loss = make_loss(args.loss_function)
         model.compile(loss=loss,
