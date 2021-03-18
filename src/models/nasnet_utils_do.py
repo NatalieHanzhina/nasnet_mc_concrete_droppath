@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Layer
-from tensorflow.python.keras.utils.tf_utils import smart_cond
+from tensorflow.python.framework.smart_cond import smart_cond
 
 
 class ScheduledDropout(Layer):

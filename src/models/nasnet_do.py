@@ -187,7 +187,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
         x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     #conv1
 
-    total_num_cells = 26
+    total_num_cells = 4 + 3 * num_blocks
     cell_counter = 0
     p = None
     x, p = _reduction_a_cell_do(x, p, filters // (filter_multiplier ** 2), net_type=net_type, cell_num=cell_counter,
@@ -387,7 +387,7 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
         elif net_type == NetType.mc_dp:
             if cell_num is None or total_num_cells is None:
                 raise ValueError('Please specify cell number for correct Scheduled MC dropout')
-            x = ScheduledDropout(do_p, cell_num=None, total_num_cells=None,
+            x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                  total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
     return x
