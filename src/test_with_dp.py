@@ -70,8 +70,7 @@ def main():
                    'binary_crossentropy': [],
                    'hard_dice_coef_ch1': [],
                    'hard_dice_coef': [],
-                   'mean_brier_score': [],
-                   'sum_brier_score': [],
+                   'brier_score': [],
                    'tf_brier_score': [],
                    'expected_calibration_error': []
                    }
@@ -113,13 +112,12 @@ def main():
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
-        loss_value, bce_value, hdc1_value, hdc_value, mean_brier_score_value, sum_brier_score_value, tf_brier_score_value = \
+        loss_value, bce_value, hdc1_value, hdc_value, brier_score_value, tf_brier_score_value = \
             Mean()(metrics[args.loss_function]), \
             Mean()(metrics['binary_crossentropy']), \
             Mean()(metrics['hard_dice_coef_ch1']), \
             Mean()(metrics['hard_dice_coef']), \
-            Mean()(metrics['mean_brier_score']), \
-            Mean()(metrics['sum_brier_score']), \
+            Mean()(metrics['brier_score']), \
             Mean()(metrics['tf_brier_score'])
 
         m = 20
