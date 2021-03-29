@@ -53,6 +53,9 @@ class ScheduledDropout(Layer):
             binary_tensor = tf.cast(tf.floor(random_tensor), inputs.dtype)
             keep_prob_inv = tf.cast(1.0 / (1-scheduled_drop_rate), inputs.dtype)
             outputs = inputs * keep_prob_inv * binary_tensor
+            tf.debugging.assert_equal(tf.reduce_sum(binary_tensor), tf.reduce_sum(tf.cast(tf.reduce_max(outputs, axis=[1,2,3]) > 0, dtype=tf.float32)))  # TODO: remove when debugged
+            #tf.print(self.name + ': \t', tf.reduce_sum(binary_tensor), tf.shape(binary_tensor)[0], end='')
+            #tf.print(';\t', tf.reduce_sum(tf.cast(tf.reduce_max(outputs, axis=[1,2,3]) > 0, dtype=tf.int16)))
             return outputs
 
         output = smart_cond(training, dropped_inputs, lambda: tf.identity(inputs))

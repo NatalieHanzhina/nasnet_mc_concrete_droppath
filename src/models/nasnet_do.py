@@ -387,7 +387,7 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
         elif net_type == NetType.mc_dp:
             # if cell_num is None or total_num_cells is None:
             #     raise ValueError('Please specify cell number for correct Scheduled MC dropout')
-            x = ScheduledDropout(do_p, cell_num=None, total_num_cells=None,
+            x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                  total_training_steps=None, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
     return x
