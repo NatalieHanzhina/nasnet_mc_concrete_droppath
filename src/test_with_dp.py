@@ -102,10 +102,10 @@ def main():
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
-            metrics['tf_brier_score'].append(tfp.python.experimental.brier_score(y.astype(np.int32), mean_predicts).numpy())
-            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts).numpy())
+            metrics['tf_brier_score'].append(tfp.stats.brier_score(y.astype(np.int32)[..., 0], mean_predicts[..., 0]).numpy())
+            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
-            exclude_metrics = ['tf_brier_score']
+            exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
             prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
 
@@ -123,9 +123,13 @@ def main():
         m = 20
         groups = data_gen_len // m
         eces = []
-        for i in range(groups-1):
-            accs, probs = zip(metrics['expected_calibration_error'][(i-1)*m:i*m])
+        j = 0
+        for j in range(1, groups):
+            accs, probs = zip(*metrics['expected_calibration_error'][(j-1)*m:j*m])
             eces.append(m/data_gen_len*tf.abs(tf.keras.backend.mean(accs) - tf.keras.backend.mean(probs)))
+            pass
+        accs, probs = zip(*metrics['expected_calibration_error'][(j) * m:])
+        eces.append((data_gen_len % m) / data_gen_len * tf.abs(tf.reduce_mean(accs) - tf.reduce_mean(probs)))
         ece_value = tf.keras.backend.sum(eces)
 
         print(f'Performed {predictions_repetition} repetitions per sample')

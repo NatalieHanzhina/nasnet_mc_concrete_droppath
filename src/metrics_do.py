@@ -8,8 +8,8 @@ def brier_score(y_true, y_pred):
 
 
 def actual_accuracy_and_confidence(y_true, y_pred):
-    acc = K.mean(y_true == y_pred, axis=list(range(1, len(y_true.shape))))
-    conf = K.mean(y_pred, axis=list(range(1, len(y_true.shape))))
+    acc = K.mean(y_true[..., 0] == y_pred[..., 0], axis=list(range(1, len(y_true.shape)-1)))
+    conf = K.mean(y_pred[..., 0], axis=list(range(1, len(y_true.shape)-1)))
     return acc, conf
 
 
