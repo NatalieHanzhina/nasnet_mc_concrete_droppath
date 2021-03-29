@@ -2,11 +2,10 @@ import gc
 import os
 
 import numpy as np
-from tqdm import tqdm
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
-from metrics_do import brier_score
+from metrics_do import brier_score, actual_accuracy_and_confidence
 from models.model_factory import make_model
 from params import args
 
@@ -73,6 +72,7 @@ def main():
                    'hard_dice_coef': [],
                    'brier_score': [],
                    'tf_brier_score': [],
+                   'expected_calibration_error': []
                    }
         loop_stop = data_generator.__len__()
 
@@ -81,7 +81,8 @@ def main():
         pred_mc = []
         pred_std_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
         entropy_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
-        for x, y in tqdm(data_generator):
+        prog_bar = tf.keras.utils.Progbar(data_gen_len)
+        for x, y in data_generator:
             counter += 1
             if counter >= loop_stop:
                 break
@@ -101,7 +102,12 @@ def main():
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
-            metrics['tf_brier_score'].append(tfp.stats.brier_score(y, mean_predicts).numpy())
+            metrics['tf_brier_score'].append(tfp.python.experimental.brier_score(y.astype(np.int32), mean_predicts).numpy())
+            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts).numpy())
+
+            exclude_metrics = ['tf_brier_score']
+            # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
+            prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
 
             del x, y, predicts_x, mean_predicts
             gc.collect()
@@ -114,28 +120,25 @@ def main():
             Mean()(metrics['brier_score']), \
             Mean()(metrics['tf_brier_score'])
 
-        # loss_var, bce_var, hdc1_var, hdc_var = np.std(metrics[args.loss_function]), \
-        #                                                np.std(metrics['binary_crossentropy']), \
-        #                                                np.std(metrics['hard_dice_coef_ch1']), \
-        #                                                np.std(metrics['hard_dice_coef'])
+        m = 20
+        groups = data_gen_len // m
+        eces = []
+        for i in range(groups-1):
+            accs, probs = zip(metrics['expected_calibration_error'][(i-1)*m:i*m])
+            eces.append(m/data_gen_len*tf.abs(tf.keras.backend.mean(accs) - tf.keras.backend.mean(probs)))
+        ece_value = tf.keras.backend.sum(eces)
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
         print(f'{weights[i]} evaluation results:')
-        # print(list(zip([args.loss_function, 'binary_crossentropy', 'hard_dice_coef_ch1', 'hard_dice_coef'], test_loss)))
         print(f'{args.loss_function}: {loss_value:.4f}, '
               f'binary_crossentropy: {bce_value:.4f}, '
               f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
               f'hard_dice_coef: {hdc_value:.4f}')
-        #print('variances estimation')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
-              f'tf_brier_score: {tf_brier_score_value:.4f}')
-
-        # print(f'{args.loss_function}: {loss_var:.4f}, '
-        #       f'binary_crossentropy: {bce_var:.4f}, '
-        #       f'hard_dice_coef_ch1: {hdc1_var:.4f}, '
-        #       f'hard_dice_coef: {hdc_var:.4f}')
+              f'tf_brier_score: {tf_brier_score_value:.4f}',
+              f'exp_calibration_error: {ece_value:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))

@@ -1,4 +1,4 @@
-from models.unets_do import densenet_fpn, inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, nasnet_fpn,\
+from models.unets_do import densenet_fpn, inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, nasnet_scd_fpn,\
     nasnet_fpn_mc_sch_dp, resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, \
     resnet50_fpn, resnext50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_dp
 
@@ -9,8 +9,8 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
     elif network == 'densenet169_softmax':
         return densenet_fpn(input_shape, channels=3, activation="softmax")
     elif network == 'nasnet_sch_dp':
-        return nasnet_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, **kwargs)
-    elif network == 'nasnet_mc_dp_test':     #  does not support scheduling dropout. Used for shceduled mc inferences sheduled-trained models with droppath
+        return nasnet_scd_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, **kwargs)
+    elif network == 'nasnet_mc_dp_test':     #  does not support scheduling dropout during training. Used for shceduled mc inferences of sheduled-trained models with droppath
         return nasnet_fpn_mc_sch_dp(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, **kwargs)
     if network == 'resnet101_softmax':
         return resnet101_fpn(input_shape, channels=3, activation="softmax")

@@ -385,10 +385,10 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
                                  total_training_steps=total_training_steps, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=None)
         elif net_type == NetType.mc_dp:
-            if cell_num is None or total_num_cells is None:
-                raise ValueError('Please specify cell number for correct Scheduled MC dropout')
+            # if cell_num is None or total_num_cells is None:
+            #     raise ValueError('Please specify cell number for correct Scheduled MC dropout')
             x = ScheduledDropout(do_p, cell_num=None, total_num_cells=None,
-                                 total_traisdpning_steps=None, name='scheduled_droppath_%s' % (block_id))\
+                                 total_training_steps=None, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
     return x
 
@@ -509,8 +509,6 @@ def _normal_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells,
             x1_2 = _separable_conv_block_do(p, filters, net_type, do_p=do_p, cell_num=cell_num,
                                             total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='normal_right1_%s' % block_id)
-            #if net_type == NetType.mc_dp:
-                # print('MC_DP___________')
             x1 = layers.add([x1_1, x1_2], name='normal_add_1_%s' % block_id)
 
         with K.name_scope('block_2'):
@@ -520,28 +518,24 @@ def _normal_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells,
             x2_2 = _separable_conv_block_do(p, filters, net_type, (3, 3), do_p=do_p, cell_num=cell_num,
                                             total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='normal_right2_%s' % block_id)
-            # if net_type == NetType.mc_dp:
             x2 = layers.add([x2_1, x2_2], name='normal_add_2_%s' % block_id)
 
         with K.name_scope('block_3'):
             x3 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='normal_left3_%s' % block_id)(h)
 
             p_add = p
-            # if net_type == NetType.mc_dp:
             x3 = layers.add([x3, p_add], name='normal_add_3_%s' % block_id)
 
         with K.name_scope('block_4'):
             x4_1 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='normal_left4_%s' % block_id)(p)
             x4_2 = AveragePooling2D((3, 3), strides=(1, 1), padding='same',
                                     name='normal_right4_%s' % block_id)(p)
-            # if net_type == NetType.mc_dp:
             x4 = layers.add([x4_1, x4_2], name='normal_add_4_%s' % block_id)
 
         with K.name_scope('block_5'):
             x5 = _separable_conv_block_do(h, filters, net_type, do_p=do_p, cell_num=cell_num,
                                           total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                           block_id='normal_left5_%s' % block_id)
-            # if net_type == NetType.mc_dp:
             x5 = layers.add([x5, h], name='normal_add_5_%s' % block_id)
 
         x = layers.concatenate([p, x1, x2, x3, x4, x5], name='normal_concat_%s' % block_id)     #TODO: drop x1, x2, x5
@@ -630,7 +624,6 @@ def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, to
             x1_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), do_p=do_p, cell_num=cell_num,
                                             total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right1_%s' % block_id)
-            # if net_type == NetType.mc_dp:
             x1 = layers.add([x1_1, x1_2], name='reduction_add_1_%s' % block_id)
 
         with K.name_scope('block_2'):
@@ -638,7 +631,6 @@ def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, to
             x2_2 = _separable_conv_block_do(p, filters, net_type, (7, 7), strides=(2, 2), do_p=do_p, cell_num=cell_num,
                                             total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right2_%s' % block_id)
-            # if net_type == NetType.mc_dp:
             x2 = layers.add([x2_1, x2_2], name='reduction_add_2_%s' % block_id)
 
         with K.name_scope('block_3'):
@@ -646,13 +638,11 @@ def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, to
             x3_2 = _separable_conv_block_do(p, filters, net_type, (5, 5), strides=(2, 2), do_p=do_p, cell_num=cell_num,
                                             total_num_cells=total_num_cells, total_training_steps=total_training_steps,
                                             block_id='reduction_right3_%s' % block_id)
-            # if net_type == NetType.mc_dp:
             x3 = layers.add([x3_1, x3_2], name='reduction_add3_%s' % block_id)
 
         with K.name_scope('block_4'):
             x4 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='reduction_left4_%s' % block_id)(x1)
             x2_add = x2
-            # if net_type == NetType.mc_dp:
             x4 = layers.add([x2_add, x4])
 
         with K.name_scope('block_5'):
@@ -662,7 +652,6 @@ def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, to
             x5_2 = MaxPooling2D((3, 3), strides=(2, 2), padding='valid',
                                 name='reduction_right5_%s' % block_id)(h3)
 
-            # if net_type == NetType.mc_dp:
             x5 = layers.add([x5_1, x5_2], name='reduction_add4_%s' % block_id)
 
         x = layers.concatenate([x2, x3, x4, x5], name='reduction_concat_%s' % block_id)     #TODO: drop x2, x3, x5

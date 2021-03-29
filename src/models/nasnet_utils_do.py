@@ -99,7 +99,9 @@ class ScheduledDropout(Layer):
     def get_config(self):
         config = {
             'drop_rate': self.drop_rate,
-            'drop_paths_mask': self.drop_paths_mask,
+            'cell_num': self._cell_num,
+            'total_num_cells': self._total_num_cells,
+            'total_training_steps': self._total_training_steps,
             'seed': self.seed
         }
         base_config = super(ScheduledDropout, self).get_config()
