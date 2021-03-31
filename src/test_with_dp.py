@@ -60,13 +60,14 @@ def main():
                    'hard_dice_coef_ch1': [],
                    'hard_dice_coef': [],
                    'brier_score': [],
-                   'tf_brier_score': [],
                    'expected_calibration_error': []
                    }
         loop_stop = data_generator.__len__()
+        #loop_stop = 22
 
         counter = -1
         data_gen_len = data_generator.__len__()
+        # data_gen_len = 22
         entropy_of_mean = []
         mean_entropy = []
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
@@ -90,11 +91,12 @@ def main():
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
-            metrics['tf_brier_score'].append(tfp.stats.brier_score(y.astype(np.int32)[..., 0], mean_predicts[..., 0]).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
-            mean_entropy.append(tf.reduce_mean(entropy(predicts_x)))
-            entropy_of_mean.append(entropy(mean_predicts, sum_axis=list(range(len(mean_predicts.shape)))))
+            mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
+            #tf.print('m_e:',tf.shape(mean_entropy[-1]))
+            entropy_of_mean.append(entropy(mean_predicts[..., 0]))
+            #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
             exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
@@ -103,13 +105,12 @@ def main():
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
-        loss_value, bce_value, hdc1_value, hdc_value, brier_score_value, tf_brier_score_value = \
+        loss_value, bce_value, hdc1_value, hdc_value, brier_score_value = \
             Mean()(metrics[args.loss_function]), \
             Mean()(metrics['binary_crossentropy']), \
             Mean()(metrics['hard_dice_coef_ch1']), \
             Mean()(metrics['hard_dice_coef']), \
-            Mean()(metrics['brier_score']), \
-            Mean()(metrics['tf_brier_score'])
+            Mean()(metrics['brier_score'])
 
         m = 20
         groups = data_gen_len // m
@@ -117,13 +118,17 @@ def main():
         j = 0
         for j in range(1, groups):
             accs, probs = zip(*metrics['expected_calibration_error'][(j-1)*m:j*m])
-            eces.append(m/data_gen_len*tf.abs(tf.keras.backend.mean(accs) - tf.keras.backend.mean(probs)))
+            #tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+            eces.append(m/data_gen_len*tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
         accs, probs = zip(*metrics['expected_calibration_error'][j * m:])
-        eces.append((data_gen_len % m) / data_gen_len * tf.abs(tf.reduce_mean(accs) - tf.reduce_mean(probs)))
-        ece_value = tf.keras.backend.sum(eces)
+        #tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+        eces.append((data_gen_len % m+m) / data_gen_len * tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
+        #tf.print(((data_gen_len % m+m) / data_gen_len * tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0))).shape)
+        #tf.print(tf.convert_to_tensor(eces).shape)
+        ece_value = tf.reduce_mean(tf.reduce_sum(eces, axis=0))
 
+        #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
         mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
-        sum_entropy_subtr = np.sum(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
@@ -134,10 +139,8 @@ def main():
               f'hard_dice_coef: {hdc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
-              f'tf_brier_score: {tf_brier_score_value:.4f}',
               f'exp_calibration_error: {ece_value:.4f}',
-              f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}',
-              f'sum_entropy_subtr: {sum_entropy_subtr:.4f}')
+              f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))

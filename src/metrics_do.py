@@ -9,8 +9,8 @@ def brier_score(y_true, y_pred):
 
 
 def actual_accuracy_and_confidence(y_true, y_pred):
-    acc = K.mean(y_true[..., 0] == K.round(y_pred[..., 0]), axis=list(range(1, len(y_true.shape)-1)))
-    conf = K.mean(y_pred[..., 0], axis=list(range(1, len(y_true.shape)-1)))
+    acc = K.cast(y_true[..., 0] == K.round(y_pred[..., 0]), dtype='float32')
+    conf = y_pred[..., 0]
     return acc, conf
 
 
@@ -21,7 +21,6 @@ def hard_dice_coef(y_true, y_pred, smooth=1e-3):
     return 100. * (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
 
-def entropy(y_pred, sum_axis=None):
-    if sum_axis is None:
-        sum_axis = list(range(1, len(y_pred.shape)))
-    return tf.reduce_sum(y_pred * tf.math.log(y_pred) / tf.math.log(2), axis=sum_axis)
+def entropy(y_pred):
+    #tf.print('entropy_result_shape:', (y_pred * tf.math.log(y_pred)).shape)
+    return y_pred * tf.math.log(y_pred + 1e-10)
