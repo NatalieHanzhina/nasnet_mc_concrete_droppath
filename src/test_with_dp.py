@@ -5,7 +5,7 @@ import numpy as np
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
-from metrics_do import brier_score, actual_accuracy_and_confidence
+from metrics_do import brier_score, actual_accuracy_and_confidence, entropy
 from models.model_factory import make_model
 from params import args
 
@@ -25,33 +25,22 @@ from tensorflow.keras.optimizers import RMSprop
 
 
 def main():
-    all_ids = []
-    all_images = []
-    all_masks = []
-
-    OUT_CHANNELS = args.out_channels
-
     gpus = tf.config.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
-
-    predictions_repetition = args.times_sample_per_test
-    model_without_dropout = False
     t0 = timeit.default_timer()
 
+    predictions_repetition = args.times_sample_per_test
     weights = [os.path.join(args.models_dir, m) for m in args.models]
     models = []
     for w in weights:
-        if model_without_dropout:
-            model = load_model_weights(w)
-        else:
-            model = make_model(args.network,
-                               (None, None, args.channels),
-                               pretrained_weights=args.pretrained_weights,
-                               do_p=args.dropout_rate,
-                               resize_size=(args.resize_size, args.resize_size))
-            print("Building model {} from weights {} ".format(args.network, w))
-            model.load_weights(w)
+        model = make_model(args.network,
+                           (None, None, args.channels),
+                           pretrained_weights=args.pretrained_weights,
+                           do_p=args.dropout_rate,
+                           resize_size=(args.resize_size, args.resize_size))
+        print("Building model {} from weights {} ".format(args.network, w))
+        model.load_weights(w)
         models.append(model)
 
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
@@ -78,9 +67,8 @@ def main():
 
         counter = -1
         data_gen_len = data_generator.__len__()
-        pred_mc = []
-        pred_std_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
-        entropy_mc = np.zeros((data_gen_len, *data_generator.get_output_shape()[:2], args.out_channels))
+        entropy_of_mean = []
+        mean_entropy = []
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
         for x, y in data_generator:
             counter += 1
@@ -105,6 +93,9 @@ def main():
             metrics['tf_brier_score'].append(tfp.stats.brier_score(y.astype(np.int32)[..., 0], mean_predicts[..., 0]).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
+            mean_entropy.append(tf.reduce_mean(entropy(predicts_x)))
+            entropy_of_mean.append(entropy(mean_predicts, sum_axis=list(range(len(mean_predicts.shape)))))
+
             exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
             prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
@@ -127,10 +118,12 @@ def main():
         for j in range(1, groups):
             accs, probs = zip(*metrics['expected_calibration_error'][(j-1)*m:j*m])
             eces.append(m/data_gen_len*tf.abs(tf.keras.backend.mean(accs) - tf.keras.backend.mean(probs)))
-            pass
-        accs, probs = zip(*metrics['expected_calibration_error'][(j) * m:])
+        accs, probs = zip(*metrics['expected_calibration_error'][j * m:])
         eces.append((data_gen_len % m) / data_gen_len * tf.abs(tf.reduce_mean(accs) - tf.reduce_mean(probs)))
         ece_value = tf.keras.backend.sum(eces)
+
+        mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
+        sum_entropy_subtr = np.sum(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
@@ -142,7 +135,9 @@ def main():
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
               f'tf_brier_score: {tf_brier_score_value:.4f}',
-              f'exp_calibration_error: {ece_value:.4f}')
+              f'exp_calibration_error: {ece_value:.4f}',
+              f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}',
+              f'sum_entropy_subtr: {sum_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
