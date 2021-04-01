@@ -60,9 +60,9 @@ class BaseMaskDatasetIterator(Iterator):
 
     def get_output_shape(self):
         if self.crop_shape is not None and self.crop_shape != (None, None):
-            return (*self.crop_shape, os.listdir(self.image_paths[0]))
+            return (*self.crop_shape, len(os.listdir(self.image_paths[0])))
         elif self.resize_shape is not None and self.resize_shape != (None, None):
-            return (*self.resize_shape, os.listdir(self.image_paths[0]))
+            return (*self.resize_shape, len(os.listdir(self.image_paths[0])))
         else:
             path_to_img = os.path.join(self.image_paths[0], os.listdir(self.image_paths[0])[0])
             img_shape = (*np.asarray(nib.load(path_to_img).get_fdata())[..., 0].shape, len(os.listdir(self.image_paths[0])))

@@ -67,9 +67,9 @@ def main():
 
         counter = -1
         data_gen_len = data_generator.__len__()
-        # data_gen_len = 22
-        entropy_of_mean = []
-        mean_entropy = []
+        #data_gen_len = 22
+        entropy_of_mean = tf.zeros((0, *data_generator.get_output_shape()[:2]))
+        mean_entropy = tf.zeros((0, *data_generator.get_output_shape()[:2]))
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
         for x, y in data_generator:
             counter += 1
@@ -79,12 +79,6 @@ def main():
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
 
-            # predicts_x_ext = np.repeat(predicts_x[..., np.newaxis], 2, axis=-1)
-            # predicts_x_ext[..., 1] = 1 - predicts_x_ext[..., 1]
-            # pred_mc.append(tf.math.reduce_mean(predicts_x_ext, axis=1)[0])
-            # pred_std_mc[counter] = np.sqrt(np.sum(np.var(predicts_x_ext, axis=1), axis=-1))
-            # entropy_mc[counter] = -np.sum(pred_mc[counter] * np.log2(pred_mc[counter] + 1E-14), axis=-1)  # Numerical Stability
-
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
@@ -93,9 +87,9 @@ def main():
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
-            mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
+            mean_entropy = tf.concat([mean_entropy, tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1)], axis=0)
             #tf.print('m_e:',tf.shape(mean_entropy[-1]))
-            entropy_of_mean.append(entropy(mean_predicts[..., 0]))
+            entropy_of_mean = tf.concat([entropy_of_mean, entropy(mean_predicts[..., 0])], axis=0)
             #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
             exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
@@ -121,14 +115,12 @@ def main():
             #tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
             eces.append(m/data_gen_len*tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
         accs, probs = zip(*metrics['expected_calibration_error'][j * m:])
-        #tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
         eces.append((data_gen_len % m+m) / data_gen_len * tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
-        #tf.print(((data_gen_len % m+m) / data_gen_len * tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0))).shape)
         #tf.print(tf.convert_to_tensor(eces).shape)
         ece_value = tf.reduce_mean(tf.reduce_sum(eces, axis=0))
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
-        mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
+        mean_entropy_subtr = tf.reduce_mean(mean_entropy-entropy_of_mean)
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
