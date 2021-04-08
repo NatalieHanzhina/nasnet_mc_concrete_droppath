@@ -213,6 +213,85 @@ def inception_resnet_block_do(x, scale, block_type, block_idx, cell_num, total_n
     return x
 
 
+def inception_resnet_block(x, scale, block_type, block_idx, activation='relu'):
+    """Adds a Inception-ResNet block.
+
+    This function builds 3 types of Inception-ResNet blocks mentioned
+    in the paper, controlled by the `block_type` argument (which is the
+    block name used in the official TF-slim implementation):
+        - Inception-ResNet-A: `block_type='block35'`
+        - Inception-ResNet-B: `block_type='block17'`
+        - Inception-ResNet-C: `block_type='block8'`
+
+    # Arguments
+        x: input tensor.
+        scale: scaling factor to scale the residuals (i.e., the output of
+            passing `x` through an inception module) before adding them
+            to the shortcut branch. Let `r` be the output from the residual branch,
+            the output of this block will be `x + scale * r`.
+        block_type: `'block35'`, `'block17'` or `'block8'`, determines
+            the network structure in the residual branch.
+        block_idx: an `int` used for generating layer names. The Inception-ResNet blocks
+            are repeated many times in this network. We use `block_idx` to identify
+            each of the repetitions. For example, the first Inception-ResNet-A block
+            will have `block_type='block35', block_idx=0`, ane the layer names will have
+            a common prefix `'block35_0'`.
+        activation: activation function to use at the end of the block
+            (see [activations](keras./activations.md)).
+            When `activation=None`, no activation is applied
+            (i.e., "linear" activation: `a(x) = x`).
+
+    # Returns
+        Output tensor for the block.
+
+    # Raises
+        ValueError: if `block_type` is not one of `'block35'`,
+            `'block17'` or `'block8'`.
+    """
+    if block_type == 'block35':
+        branch_0 = conv2d_bn(x, 32, 1)
+        branch_1 = conv2d_bn(x, 32, 1)
+        branch_1 = conv2d_bn(branch_1, 32, 3)
+        branch_2 = conv2d_bn(x, 32, 1)
+        branch_2 = conv2d_bn(branch_2, 48, 3)
+        branch_2 = conv2d_bn(branch_2, 64, 3)
+        branches = [branch_0, branch_1, branch_2]
+    elif block_type == 'block17':
+        branch_0 = conv2d_bn(x, 192, 1)
+        branch_1 = conv2d_bn(x, 128, 1)
+        branch_1 = conv2d_bn(branch_1, 160, [1, 7])
+        branch_1 = conv2d_bn(branch_1, 192, [7, 1])
+        branches = [branch_0, branch_1]
+    elif block_type == 'block8':
+        branch_0 = conv2d_bn(x, 192, 1)
+        branch_1 = conv2d_bn(x, 192, 1)
+        branch_1 = conv2d_bn(branch_1, 224, [1, 3])
+        branch_1 = conv2d_bn(branch_1, 256, [3, 1])
+        branches = [branch_0, branch_1]
+    else:
+        raise ValueError('Unknown Inception-ResNet block type. '
+                         'Expects "block35", "block17" or "block8", '
+                         'but got: ' + str(block_type))
+
+    block_name = block_type + '_' + str(block_idx)
+    channel_axis = 1 if K.image_data_format() == 'channels_first' else 3
+    mixed = Concatenate(axis=channel_axis, name=block_name + '_mixed')(branches)
+    up = conv2d_bn(mixed,
+                   K.int_shape(x)[channel_axis],
+                   1,
+                   activation=None,
+                   use_bias=True,
+                   name=block_name + '_conv')
+
+    x = Lambda(lambda inputs, scale: inputs[0] + inputs[1] * scale,
+               output_shape=K.int_shape(x)[1:],
+               arguments={'scale': scale},
+               name=block_name)([x, up])
+    if activation is not None:
+        x = Activation(activation, name=block_name + '_ac')(x)
+    return x
+
+
 def rand_one_in_array(dropout_len, seed=None):
     rand_arr = tf.zeros(dropout_len)
     rand_arr[tf.random.uniform(1, max_val=dropout_len)] = 1
@@ -593,7 +672,7 @@ def get_donor_model(include_top=True,
 
     # 10x block35 (Inception-ResNet-A block): 35 x 35 x 320
     for block_idx in range(1, 11):
-        x = inception_resnet_block_do(x,
+        x = inception_resnet_block(x,
                                       scale=0.17,
                                       block_type='block35',
                                       block_idx=block_idx)
@@ -609,7 +688,7 @@ def get_donor_model(include_top=True,
 
     # 20x block17 (Inception-ResNet-B block): 17 x 17 x 1088
     for block_idx in range(1, 21):
-        x = inception_resnet_block_do(x,
+        x = inception_resnet_block(x,
                                       scale=0.1,
                                       block_type='block17',
                                       block_idx=block_idx)
@@ -628,11 +707,11 @@ def get_donor_model(include_top=True,
 
     # 10x block8 (Inception-ResNet-C block): 8 x 8 x 2080
     for block_idx in range(1, 10):
-        x = inception_resnet_block_do(x,
+        x = inception_resnet_block(x,
                                       scale=0.2,
                                       block_type='block8',
                                       block_idx=block_idx)
-    x = inception_resnet_block_do(x,
+    x = inception_resnet_block(x,
                                   scale=1.,
                                   activation=None,
                                   block_type='block8',
