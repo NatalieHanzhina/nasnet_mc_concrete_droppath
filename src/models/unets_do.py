@@ -489,9 +489,8 @@ def log_pre_softmax(x, prt_name):
     return x
     #tf.print(name, x)
 
-
-def nasnet_scd_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet',
-                   activation="sigmoid"):
+def nasnet_scd_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None,
+                   weights='imagenet', activation="sigmoid"):
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
     return nasnet_fpn_do(input_shape, NetType.sdp, channels, do_p, total_training_steps, weights, activation)
@@ -535,9 +534,10 @@ def inception_resnet_v2_fpn(input_shape, channels=1, weights='imagenet', activat
     return inception_resnet_v2_fpn_do(input_shape, NetType.vanilla, channels, None, weights, activation)
 
 
-def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
+def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid",
+                               **kwargs):
     inc_resv2_do = InceptionResNetV2Same_do(net_type=net_type, input_shape=input_shape, do_p=dp_p, weights=weights,
-                                         include_top=False)
+                                         include_top=False, **kwargs)
     conv1, conv2, conv3, conv4, conv5 = inc_resv2_do.output
 
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
@@ -566,6 +566,11 @@ def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weig
 def inception_resnet_v2_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
     return inception_resnet_v2_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
 
+
+def inception_resnet_v2_fpn_sch_do(input_shape, channels=1, dp_p=0.3, total_training_steps=None,
+                                   weights='imagenet', activation="sigmoid"):
+    return inception_resnet_v2_fpn_do(input_shape, NetType.sdp, channels, dp_p, weights,
+                                      activation, total_training_steps=total_training_steps)
 
 if __name__ == '__main__':
     resnet101_fpn((256, 256, 3)).summary()
