@@ -192,23 +192,23 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
     p = None
     x, p = _reduction_a_cell_do(x, p, filters // (filter_multiplier ** 2), net_type=net_type, cell_num=cell_counter,
                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                block_id='stem_1')
+                                do_p=do_p, block_id='stem_1')
     cell_counter += 1
     #conv2
     x, p = _reduction_a_cell_do(x, p, filters // filter_multiplier, net_type=net_type, cell_num=cell_counter,
                                 total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                block_id='stem_2')
+                                do_p=do_p, block_id='stem_2')
     cell_counter += 1
 
     for i in range(num_blocks):
         x, p = _normal_a_cell_do(x, p, filters, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                 block_id='%d' % (i))
+                                 do_p=do_p, block_id='%d' % (i))
         cell_counter += 1
     #conv3
     x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                 block_id='reduce_%d' % (num_blocks))
+                                 do_p=do_p, block_id='reduce_%d' % (num_blocks))
     cell_counter += 1
 
     p = p0 if not skip_reduction else p
@@ -216,19 +216,19 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
     for i in range(num_blocks):
         x, p = _normal_a_cell_do(x, p, filters * filter_multiplier, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                 block_id='%d' % (num_blocks + i + 1))
+                                 do_p=do_p, block_id='%d' % (num_blocks + i + 1))
         cell_counter += 1
     #conv4
     x, p0 = _reduction_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                 block_id='reduce_%d' % (2 * num_blocks))
+                                 do_p=do_p, block_id='reduce_%d' % (2 * num_blocks))
     cell_counter += 1
     p = p0 if not skip_reduction else p
 
     for i in range(num_blocks):
         x, p = _normal_a_cell_do(x, p, filters * filter_multiplier ** 2, net_type=net_type, cell_num=cell_counter,
                                  total_num_cells=total_num_cells, total_training_steps=total_training_steps,
-                                 block_id='%d' % (2 * num_blocks + i + 1))
+                                 do_p=do_p, block_id='%d' % (2 * num_blocks + i + 1))
         cell_counter += 1
     #conv5
     x = Activation('relu')(x)

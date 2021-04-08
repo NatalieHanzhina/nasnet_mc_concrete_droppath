@@ -40,6 +40,7 @@ def main():
                            do_p=args.dropout_rate,
                            resize_size=(args.resize_size, args.resize_size))
         print("Building model {} from weights {} ".format(args.network, w))
+        print(f'Using dropout rate {args.dropout_rate}')
         model.load_weights(w)
         models.append(model)
 
@@ -68,8 +69,8 @@ def main():
         counter = -1
         data_gen_len = data_generator.__len__()
         #data_gen_len = 22
-        entropy_of_mean = tf.zeros((0, *data_generator.get_output_shape()[:2]))
-        mean_entropy = tf.zeros((0, *data_generator.get_output_shape()[:2]))
+        entropy_of_mean = []
+        mean_entropy = []
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
         for x, y in data_generator:
             counter += 1
@@ -87,9 +88,9 @@ def main():
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
-            mean_entropy = tf.concat([mean_entropy, tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1)], axis=0)
+            mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
             #tf.print('m_e:',tf.shape(mean_entropy[-1]))
-            entropy_of_mean = tf.concat([entropy_of_mean, entropy(mean_predicts[..., 0])], axis=0)
+            entropy_of_mean.append(entropy(mean_predicts[..., 0]))
             #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
             exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
@@ -120,7 +121,8 @@ def main():
         ece_value = tf.reduce_mean(tf.reduce_sum(eces, axis=0))
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
-        mean_entropy_subtr = tf.reduce_mean(mean_entropy-entropy_of_mean)
+        mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
+        #mean_entropy_subtr = tf.reduce_mean(mean_entropy-entropy_of_mean)
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
