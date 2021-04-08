@@ -568,7 +568,7 @@ def inception_resnet_v2_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='im
 
 
 def inception_resnet_v2_fpn_sch_do(input_shape, channels=1, dp_p=0.3, total_training_steps=None,
-                                   weights='imagenet', activation="sigmoid"):
+                                   weights='imagenet', activation="sigmoid", resize_size=None):
     return inception_resnet_v2_fpn_do(input_shape, NetType.sdp, channels, dp_p, weights,
                                       activation, total_training_steps=total_training_steps)
 

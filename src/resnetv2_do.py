@@ -523,7 +523,6 @@ def InceptionResNetV2Same_do(include_top=True,
                                   net_type=net_type,
                                   do_p=do_p)
     cell_counter += 1
-    print(f'TOTAL NUMBER OF CELLS ={cell_counter}')
 
     # Final convolution block: 8 x 8 x 1536
     x = conv2d_bn(x, 1536, 1, name='conv_7b')
@@ -577,23 +576,24 @@ def InceptionResNetV2Same_do(include_top=True,
                   f'for inception_resnet_v2 backbone')
             donor_model.load_weights(weights_path)
 
-            j = 1 # ignore input layers
-            for i, l in enumerate(model.layers[1:]):
-                if j >= len(donor_model.layers):
+            donor_model_weight_layers = [d_l for d_l in donor_model.layers if len(d_l.weights) > 0]
+            j = 0
+            for i, l in enumerate([l for l in model.layers if len(l.weights) > 0]):
+                if j >= len(donor_model_weight_layers):
                     break
-                d_l = donor_model.layers[j]
-                #if l.name != d_l.name: # incorrect names
-                if ('dropout' in l.name or 'droppath' in l.name) and ('dropout' not in d_l.name or 'droppath' not in d_l.name):
+                d_l = donor_model_weight_layers[j]
+                # if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name or \
+                        'droppath' in l.name and 'droppath' not in d_l.name:
                     continue
-                j += 1
-                if \
-                        i == 0:
+                if i == 0:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     l.weights[0].assign(new_w)
                 else:
-                    for (w, d_w) in zip (l.weights, d_l.weights):
+                    for (w, d_w) in zip(l.weights, d_l.weights):
                         w.assign(d_w)
-            assert j == len(donor_model.layers)
+                j += 1
+            assert j == len(donor_model_weight_layers)
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')
