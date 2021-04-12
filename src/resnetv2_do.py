@@ -403,26 +403,27 @@ def InceptionResNetV2Same_do(include_top=True,
     if net_type == NetType.sdp:
         branch_0 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
                                     total_training_steps=total_training_steps)(
-            branch_0)
+            branch_0, training=True)
     branch_1 = conv2d_bn(x, 48, 1)
     branch_1 = conv2d_bn(branch_1, 64, 5)
     if net_type == NetType.sdp:
         branch_1 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
                                     total_training_steps=total_training_steps)(
-            branch_1)
+            branch_1, training=True)
     branch_2 = conv2d_bn(x, 64, 1)
     branch_2 = conv2d_bn(branch_2, 96, 3)
     branch_2 = conv2d_bn(branch_2, 96, 3)
     if net_type == NetType.sdp:
         branch_2 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
                                     total_training_steps=total_training_steps)(
-            branch_2)
+            branch_2, training=True)
     branch_pool = AveragePooling2D(3, strides=1, padding='same')(x)
     branch_pool = conv2d_bn(branch_pool, 64, 1)
     branches = [branch_0, branch_1, branch_2, branch_pool]
     if net_type == NetType.mc_dp:
         # print('MC_DP___________')
-        dropped_branches = DropPath(do_p, [True, True, True, False], name='inception-a_block_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, True, True, False], name='inception-a_block_droppath')(branches,
+                                                                                                        training=True)
         branches = dropped_branches
     channel_axis = 1 if K.image_data_format() == 'channels_first' else 3
     x = Concatenate(axis=channel_axis, name='mixed_5b')(branches)
@@ -445,17 +446,18 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_0 = conv2d_bn(x, 384, 3, strides=2, padding='same')
     if net_type == NetType.sdp:
         branch_0 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
-                                    total_training_steps=total_training_steps)(branch_0)
+                                    total_training_steps=total_training_steps)(branch_0, training=True)
     branch_1 = conv2d_bn(x, 256, 1)
     branch_1 = conv2d_bn(branch_1, 256, 3)
     branch_1 = conv2d_bn(branch_1, 384, 3, strides=2, padding='same')
     if net_type == NetType.sdp:
         branch_1 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
-                                    total_training_steps=total_training_steps)(branch_1)
+                                    total_training_steps=total_training_steps)(branch_1, training=True)
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_pool]
     if net_type == NetType.mc_dp:
-        dropped_branches = DropPath(do_p, [True, True, False], name='reduction-a_block_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, True, False], name='reduction-a_block_droppath')(branches,
+                                                                                                  training=True)
         branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_6a')(branches)
     cell_counter += 1
@@ -478,24 +480,25 @@ def InceptionResNetV2Same_do(include_top=True,
     branch_0 = conv2d_bn(branch_0, 384, 3, strides=2, padding='same')
     if net_type == NetType.sdp:
         branch_0 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
-                                    total_training_steps=total_training_steps)(branch_0)
+                                    total_training_steps=total_training_steps)(branch_0, training=True)
     branch_1 = conv2d_bn(x, 256, 1)
     branch_1 = conv2d_bn(branch_1, 288, 3, strides=2, padding='same')
     if net_type == NetType.sdp:
         branch_1 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
                                     total_training_steps=total_training_steps)(
-            branch_1)
+            branch_1, training=True)
     branch_2 = conv2d_bn(x, 256, 1)
     branch_2 = conv2d_bn(branch_2, 288, 3)
     branch_2 = conv2d_bn(branch_2, 320, 3, strides=2, padding='same')
     if net_type == NetType.sdp:
         branch_2 = ScheduledDropout(do_p, cell_num=cell_counter, total_num_cells=total_num_cells,
                                     total_training_steps=total_training_steps)(
-            branch_2)
+            branch_2, training=True)
     branch_pool = MaxPooling2D(3, strides=2, padding='same')(x)
     branches = [branch_0, branch_1, branch_2, branch_pool]
     if net_type == NetType.mc_dp:
-        dropped_branches = DropPath(do_p, [True, True, True, False], name='reduction-b_block_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, True, True, False], name='reduction-b_block_droppath')(branches,
+                                                                                                        training=True)
         branches = dropped_branches
     x = Concatenate(axis=channel_axis, name='mixed_7a')(branches)
     cell_counter += 1
