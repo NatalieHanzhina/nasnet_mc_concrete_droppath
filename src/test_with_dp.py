@@ -1,7 +1,12 @@
 import gc
 import os
+import random
+import timeit
 
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras.metrics import Mean
+from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
@@ -9,18 +14,11 @@ from metrics_do import brier_score, actual_accuracy_and_confidence, entropy
 from models.model_factory import make_model
 from params import args
 
+# import tensorflow_probability as tfp
+
 np.random.seed(1)
-import random
-
 random.seed(1)
-import tensorflow as tf
-import tensorflow_probability as tfp
-
 tf.random.set_seed(1)
-import timeit
-from tensorflow.keras.metrics import Mean
-from tensorflow.keras.optimizers import RMSprop
-
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
 
 
@@ -64,7 +62,7 @@ def main():
                    'expected_calibration_error': []
                    }
         loop_stop = data_generator.__len__()
-        #loop_stop = 22
+        loop_stop = 3
 
         counter = -1
         data_gen_len = data_generator.__len__()
@@ -108,17 +106,11 @@ def main():
             Mean()(metrics['brier_score'])
 
         m = 20
-        groups = data_gen_len // m
-        eces = []
-        j = 0
-        for j in range(1, groups):
-            accs, probs = zip(*metrics['expected_calibration_error'][(j-1)*m:j*m])
-            #tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-            eces.append(m/data_gen_len*tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
-        accs, probs = zip(*metrics['expected_calibration_error'][j * m:])
-        eces.append((data_gen_len % m+m) / data_gen_len * tf.abs(tf.reduce_mean(accs, axis=0) - tf.reduce_mean(probs, axis=0)))
+        accs, probs = zip(*metrics['expected_calibration_error'])
+        accs, probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(probs), axis=0)
+        ece1_value = compute_ece1(accs, probs, m)
+        ece2_value = compute_ece2(accs, probs, m)
         #tf.print(tf.convert_to_tensor(eces).shape)
-        ece_value = tf.reduce_mean(tf.reduce_sum(eces, axis=0))
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
         mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
@@ -133,12 +125,49 @@ def main():
               f'hard_dice_coef: {hdc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
-              f'exp_calibration_error: {ece_value:.4f}',
+              f'exp_calibration_error1: {ece1_value:.4f}',
+              f'exp_calibration_error2: {ece2_value:.4f}',
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
     exit(0)
+
+
+def compute_ece1(accs, probs, bins):
+    pixel_wise_eces = []
+    accs = np.transpose(accs, axes=(1, 2, 0))
+    probs = np.transpose(probs, axes=(1, 2, 0))
+    h_w_wise_bins_len = (np.max(probs, axis=2)-np.min(probs, axis=2)) / bins
+    for j in range(bins):
+        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+        include_flags = np.logical_and(probs >= (h_w_wise_bins_len*j)[..., np.newaxis], probs < (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        masked_accs = np.ma.masked_where(include_flags, accs)
+        masked_probs = np.ma.masked_where(include_flags, probs)
+        mean_accuracy = masked_accs.mean(axis=-1)
+        mean_confidence = masked_probs.mean(axis=-1)
+        pixel_wise_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        pixel_wise_eces.append(pixel_wise_ece)
+    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
+    return pixel_wise_ece.mean()
+
+
+def compute_ece2(accs, probs, bins):
+    pixel_wise_eces = []
+    accs = accs.flatten()
+    probs = probs.flatten()
+    h_w_wise_bins_len = (np.max(probs)-np.min(probs)) / bins
+    for j in range(bins):
+        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+        include_flags = np.logical_and(probs >= (h_w_wise_bins_len*j), probs < (h_w_wise_bins_len*(j+1)))
+        included_accs = accs[include_flags]
+        included_probs = probs[include_flags]
+        mean_accuracy = included_accs.mean()
+        mean_confidence = included_probs.mean()
+        bin_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        pixel_wise_eces.append(bin_ece)
+    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
+    return pixel_wise_ece.mean()
 
 
 def load_model_weights(w):
