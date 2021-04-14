@@ -451,14 +451,6 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_st
     conv3 = nasnet.get_layer("activation_134").output  # ("normal_concat_5").output
     conv4 = nasnet.get_layer("activation_252").output  # ("normal_concat_12").output  # shape: (batch_size, 16, 16, channels)
     conv5 = nasnet.get_layer("normal_concat_18").output  # ("normal_concat_18").output  # shape: (batch_size, 8, 8, channels)
-    a = 1
-
-    #import tensorflow as tf
-    #conv1 = tf.keras.layers.Lambda(log_pre_softmax, arguments={'prt_name': 'conv1'})(conv1)
-    #conv2 = tf.keras.layers.Lambda(log_pre_softmax, arguments={'prt_name': 'conv2'})(conv2)
-    #conv3 = tf.keras.layers.Lambda(log_pre_softmax, arguments={'prt_name': 'conv3'})(conv3)
-    #conv4 = tf.keras.layers.Lambda(log_pre_softmax, arguments={'prt_name': 'conv4'})(conv4)
-    #conv5 = tf.keras.layers.Lambda(log_pre_softmax, arguments={'prt_name': 'conv5'})(conv5)
 
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
@@ -482,12 +474,6 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_st
     model = Model(nasnet.input, x)
     return model
 
-def log_pre_softmax(x, prt_name):
-    import tensorflow as tf
-    tf.print('\n', prt_name, tf.reduce_sum(tf.cast(tf.reduce_max(x, axis=[1,2,3]) > 0, dtype=tf.int16)), 'of ', x.shape[0], end='')
-    #tf.print(tf.reduce_sum(x, axis=[1,2,3]), summarize=20)
-    return x
-    #tf.print(name, x)
 
 def nasnet_scd_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None,
                    weights='imagenet', activation="sigmoid"):
@@ -572,5 +558,3 @@ def inception_resnet_v2_fpn_sch_do(input_shape, channels=1, dp_p=0.3, total_trai
     return inception_resnet_v2_fpn_do(input_shape, NetType.sdp, channels, dp_p, weights,
                                       activation, total_training_steps=total_training_steps)
 
-if __name__ == '__main__':
-    resnet101_fpn((256, 256, 3)).summary()

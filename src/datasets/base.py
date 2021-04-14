@@ -122,8 +122,8 @@ class BaseMaskDatasetIterator(Iterator):
         msk = np.rollaxis(msk, 0, 3)
         return msk
 
-    def augment_and_crop_mask_image(self, mask, image, label, img_id, crop_shape):
-        return mask, image, label
+    def augment_and_crop_mask_image(self, mask, image, img_id, crop_shape):
+        return mask, image
 
     def transform_batch_y(self, batch_y):
         if self.max_msk_value is None:
@@ -166,8 +166,7 @@ class BaseMaskDatasetIterator(Iterator):
                 pass
                 #mask[...,0] = (label > 0) * 255
             if self.crop_shape is not None and self.crop_shape != (None, None):
-                label = None
-                crop_mask, crop_image, crop_label = self.augment_and_crop_mask_image(mask, image, label, id, self.crop_shape)
+                crop_mask, crop_image, crop_label = self.augment_and_crop_mask_image(mask, image, id, self.crop_shape)
                 data = self.random_transformer(image=np.array(crop_image, "uint8"), mask=np.array(crop_mask, "uint8"))
                 crop_image, crop_mask = data['image'], data['mask']
                 if len(np.shape(crop_mask)) == 2:
@@ -192,7 +191,6 @@ class BaseMaskDatasetIterator(Iterator):
                 batch_x.append(resized_image)
                 resized_mask = self.transform_mask(resized_mask, resized_image)
                 batch_y.append(resized_mask)
-
             else:
                 x0, x1, y0, y1 = 0, 0, 0, 0
                 if (image.shape[1] % 32) != 0:

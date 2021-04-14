@@ -193,7 +193,8 @@ def inception_resnet_block_do(x, scale, block_type, block_idx, cell_num, total_n
     channel_axis = 1 if K.image_data_format() == 'channels_first' else 3
 
     if net_type == NetType.mc_dp:
-        dropped_branches = DropPath(do_p, [True,]*len(branches), name=block_name + '_droppath')(branches, training=True)
+        dropped_branches = DropPath(do_p, [True, ] * len(branches), name=block_name + '_droppath')(branches,
+                                                                                                   training=True)
         branches = dropped_branches
 
     mixed = Concatenate(axis=channel_axis, name=block_name + '_mixed')(branches)
@@ -603,10 +604,10 @@ def InceptionResNetV2Same_do(include_top=True,
                 f = h5py.File(weights, 'r')
                 for i, l in enumerate(model.layers):
                     l_ws = l.weights
-                    #print(len(f.keys()))
-                    #for k in f.keys():
+                    # print(len(f.keys()))
+                    # for k in f.keys():
                     #    print(k)
-                    #input()
+                    # input()
                     d_ws = [f[l.name][l_w.name] for l_w in l_ws]
                     if i == 1:
                         new_w = np.concatenate((d_ws[0].value, l.weights[0].numpy()[..., 3:, :]), axis=-2)

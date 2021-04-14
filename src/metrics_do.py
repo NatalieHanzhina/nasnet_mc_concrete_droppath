@@ -1,5 +1,5 @@
-import tensorflow.keras.backend as K
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
 
 def brier_score(y_true, y_pred):
@@ -14,13 +14,5 @@ def actual_accuracy_and_confidence(y_true, y_pred):
     return acc, conf
 
 
-def hard_dice_coef(y_true, y_pred, smooth=1e-3):
-    y_true_f = K.flatten(K.round(y_true[..., 0]))
-    y_pred_f = K.flatten(K.round(y_pred[..., 0]))
-    intersection = K.sum(y_true_f * y_pred_f)
-    return 100. * (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
-
-
 def entropy(y_pred):
-    #tf.print('entropy_result_shape:', (y_pred * tf.math.log(y_pred)).shape)
     return y_pred * tf.math.log(y_pred + 1e-10)

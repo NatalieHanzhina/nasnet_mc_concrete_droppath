@@ -72,11 +72,11 @@ class DSB2018BinaryDataset:
         return self.get_generator(self.train_ids, self.train_paths, self.channels, crop_shape, resize_shape,
                                   preprocessing_function, random_transformer, batch_size, True)
 
-    def val_generator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
+    def val_generator(self, resize_shape=(256, 256), preprocessing_function='caffe', batch_size=1):
         return self.get_generator(self.val_ids, self.val_paths, self.channels, None, resize_shape,
                                   preprocessing_function, None, batch_size, False)
 
-    def test_generator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
+    def test_generator(self, resize_shape=(256, 256), preprocessing_function='caffe', batch_size=1):
         return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None,
                                   resize_shape, preprocessing_function, None, batch_size, False)
 

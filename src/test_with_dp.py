@@ -62,7 +62,6 @@ def main():
                    'expected_calibration_error': []
                    }
         loop_stop = data_generator.__len__()
-        loop_stop = 3
 
         counter = -1
         data_gen_len = data_generator.__len__()
