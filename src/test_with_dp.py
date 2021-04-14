@@ -141,9 +141,11 @@ def compute_ece1(accs, probs, bins):
     for j in range(bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
         if j == 0:
-            include_flags = np.logical_and(probs >= probs_mins+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+            include_flags = np.logical_and(probs >= probs_mins[..., np.newaxis]+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
         else:
-            include_flags = np.logical_and(probs > probs_mins+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+            include_flags = np.logical_and(probs > probs_mins[..., np.newaxis] + (h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        if np.sum(include_flags) == 0:
+            continue
         masked_accs = np.ma.masked_where(include_flags, accs)
         masked_probs = np.ma.masked_where(include_flags, probs)
         mean_accuracy = masked_accs.mean(axis=-1)
@@ -158,19 +160,21 @@ def compute_ece2(accs, probs, bins):
     pixel_wise_eces = []
     accs = accs.flatten()
     probs = probs.flatten()
-    probs_mins = np.min(probs, axis=2)
-    h_w_wise_bins_len = (np.max(probs)-probs_mins) / bins
+    probs_min = np.min(probs)
+    h_w_wise_bins_len = (np.max(probs)-probs_min) / bins
     for j in range(bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
         if j == 0:
-            include_flags = np.logical_and(probs >= probs_mins + (h_w_wise_bins_len*j), probs <= probs_mins + (h_w_wise_bins_len*(j+1)))
+            include_flags = np.logical_and(probs >= probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
         else:
-            include_flags = np.logical_and(probs > probs_mins + (h_w_wise_bins_len*j), probs <= probs_mins + (h_w_wise_bins_len*(j+1)))
+            include_flags = np.logical_and(probs > probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
+        if np.sum(include_flags) == 0:
+            continue
         included_accs = accs[include_flags]
         included_probs = probs[include_flags]
         mean_accuracy = included_accs.mean()
         mean_confidence = included_probs.mean()
-        bin_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
         pixel_wise_eces.append(bin_ece)
     pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
     return pixel_wise_ece.mean()
