@@ -141,48 +141,48 @@ def inception_resnet_block_do(x, scale, block_type, block_idx, cell_num, total_n
         if net_type == NetType.sdp:
             branch_0 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_0)
+                branch_0, training=True)
         branch_1 = conv2d_bn(x, 32, 1)
         branch_1 = conv2d_bn(branch_1, 32, 3)
         if net_type == NetType.sdp:
             branch_1 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_1)
+                branch_1, training=True)
         branch_2 = conv2d_bn(x, 32, 1)
         branch_2 = conv2d_bn(branch_2, 48, 3)
         branch_2 = conv2d_bn(branch_2, 64, 3)
         if net_type == NetType.sdp:
             branch_2 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_2)
+                branch_2, training=True)
         branches = [branch_0, branch_1, branch_2]
     elif block_type == 'block17':
         branch_0 = conv2d_bn(x, 192, 1)
         if net_type == NetType.sdp:
             branch_0 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_0)
+                branch_0, training=True)
         branch_1 = conv2d_bn(x, 128, 1)
         branch_1 = conv2d_bn(branch_1, 160, [1, 7])
         branch_1 = conv2d_bn(branch_1, 192, [7, 1])
         if net_type == NetType.sdp:
             branch_1 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_1)
+                branch_1, training=True)
         branches = [branch_0, branch_1]
     elif block_type == 'block8':
         branch_0 = conv2d_bn(x, 192, 1)
         if net_type == NetType.sdp:
             branch_0 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_0)
+                branch_0, training=True)
         branch_1 = conv2d_bn(x, 192, 1)
         branch_1 = conv2d_bn(branch_1, 224, [1, 3])
         branch_1 = conv2d_bn(branch_1, 256, [3, 1])
         if net_type == NetType.sdp:
             branch_1 = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                         total_training_steps=total_training_steps)(
-                branch_1)
+                branch_1, training=True)
         branches = [branch_0, branch_1]
     else:
         raise ValueError('Unknown Inception-ResNet block type. '
