@@ -65,7 +65,6 @@ def main():
 
         counter = -1
         data_gen_len = data_generator.__len__()
-        #data_gen_len = 22
         entropy_of_mean = []
         mean_entropy = []
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
@@ -137,10 +136,14 @@ def compute_ece1(accs, probs, bins):
     pixel_wise_eces = []
     accs = np.transpose(accs, axes=(1, 2, 0))
     probs = np.transpose(probs, axes=(1, 2, 0))
-    h_w_wise_bins_len = (np.max(probs, axis=2)-np.min(probs, axis=2)) / bins
+    probs_mins = np.min(probs, axis=2)
+    h_w_wise_bins_len = (np.max(probs, axis=2)-probs_mins) / bins
     for j in range(bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        include_flags = np.logical_and(probs >= (h_w_wise_bins_len*j)[..., np.newaxis], probs < (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        if j == 0:
+            include_flags = np.logical_and(probs >= probs_mins+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        else:
+            include_flags = np.logical_and(probs > probs_mins+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
         masked_accs = np.ma.masked_where(include_flags, accs)
         masked_probs = np.ma.masked_where(include_flags, probs)
         mean_accuracy = masked_accs.mean(axis=-1)
@@ -155,10 +158,14 @@ def compute_ece2(accs, probs, bins):
     pixel_wise_eces = []
     accs = accs.flatten()
     probs = probs.flatten()
-    h_w_wise_bins_len = (np.max(probs)-np.min(probs)) / bins
+    probs_mins = np.min(probs, axis=2)
+    h_w_wise_bins_len = (np.max(probs)-probs_mins) / bins
     for j in range(bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        include_flags = np.logical_and(probs >= (h_w_wise_bins_len*j), probs < (h_w_wise_bins_len*(j+1)))
+        if j == 0:
+            include_flags = np.logical_and(probs >= probs_mins + (h_w_wise_bins_len*j), probs <= probs_mins + (h_w_wise_bins_len*(j+1)))
+        else:
+            include_flags = np.logical_and(probs > probs_mins + (h_w_wise_bins_len*j), probs <= probs_mins + (h_w_wise_bins_len*(j+1)))
         included_accs = accs[include_flags]
         included_probs = probs[include_flags]
         mean_accuracy = included_accs.mean()
