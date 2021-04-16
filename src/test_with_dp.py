@@ -9,8 +9,8 @@ from tensorflow.keras.metrics import Mean
 from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
-from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef
-from metrics_do import brier_score, actual_accuracy_and_confidence, entropy
+from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy
 from models.model_factory import make_model
 from params import args
 
@@ -58,6 +58,7 @@ def main():
                    'binary_crossentropy': [],
                    'hard_dice_coef_ch1': [],
                    'hard_dice_coef': [],
+                   'hard_dice_coef_combined': [],
                    'brier_score': [],
                    'expected_calibration_error': []
                    }
@@ -81,6 +82,7 @@ def main():
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
+            metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
 
@@ -96,11 +98,12 @@ def main():
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
-        loss_value, bce_value, hdc1_value, hdc_value, brier_score_value = \
+        loss_value, bce_value, hdc1_value, hdc_value, hdcc_value, brier_score_value = \
             Mean()(metrics[args.loss_function]), \
             Mean()(metrics['binary_crossentropy']), \
             Mean()(metrics['hard_dice_coef_ch1']), \
             Mean()(metrics['hard_dice_coef']), \
+            Mean()(metrics['hard_dice_coef_combined']), \
             Mean()(metrics['brier_score'])
 
         m = 20
@@ -120,7 +123,8 @@ def main():
         print(f'{args.loss_function}: {loss_value:.4f}, '
               f'binary_crossentropy: {bce_value:.4f}, '
               f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
-              f'hard_dice_coef: {hdc_value:.4f}')
+              f'hard_dice_coef: {hdc_value:.4f}',
+              f'hard_dice_coef_combined: {hdcc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
               f'exp_calibration_error1: {ece1_value:.4f}',

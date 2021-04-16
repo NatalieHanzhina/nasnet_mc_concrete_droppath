@@ -16,6 +16,14 @@ def hard_dice_coef_ch1(y_true, y_pred, smooth=1e-3):
     return 100. * (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
 
+def hard_dice_coef_combined(y_true, y_pred, smooth=1e-3):
+    combined_y_true = K.maximum(y_true[..., 0], y_true[..., 1])
+    combined_y_true_f = K.flatten(K.round(combined_y_true))
+    y_pred_f = K.flatten(K.round(y_pred[..., 0]))
+    intersection = K.sum(combined_y_true_f * y_pred_f)
+    return 100. * (2. * intersection + smooth) / (K.sum(combined_y_true_f) + K.sum(y_pred_f) + smooth)
+
+
 def dice_coef(y_true, y_pred, smooth=1e-3):
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
