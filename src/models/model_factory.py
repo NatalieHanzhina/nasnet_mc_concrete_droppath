@@ -1,7 +1,7 @@
 from models.unets_do import densenet_fpn, inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, \
-    inception_resnet_v2_fpn_sch_do, nasnet_scd_fpn, nasnet_fpn_mc_sch_dp, resnet152_fpn, resnet152_fpn_mc,\
-    resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, resnext50_fpn, xception_fpn,\
-    xception_fpn_mc, xception_fpn_mc_dp
+    inception_resnet_v2_fpn_sch_do, nasnet_cdo_fpn, nasnet_do_fpn, nasnet_scd_fpn, nasnet_fpn_mc_sch_dp, resnet152_fpn, \
+    resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, resnext50_fpn, \
+    xception_fpn, xception_fpn_mc, xception_fpn_mc_dp
 
 
 def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
@@ -9,6 +9,12 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
         return densenet_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'densenet169_softmax':
         return densenet_fpn(input_shape, channels=3, activation="softmax")
+    elif network == 'nasnet_cdo':
+        return nasnet_cdo_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
+                             **kwargs)
+    elif network == 'nasnet_do':
+        return nasnet_do_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
+                             **kwargs)
     elif network == 'nasnet_sch_dp':
         return nasnet_scd_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
                               **kwargs)

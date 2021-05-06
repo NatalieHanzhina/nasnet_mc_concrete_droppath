@@ -51,6 +51,7 @@ from tensorflow.keras.utils import get_file
 from tensorflow.keras.utils import get_source_inputs
 from tensorflow.python.keras.applications.imagenet_utils import correct_pad
 
+from src.models.nasnet_utils_do import ConcreteDropout
 from . import NetType
 
 TF_NASNET_LARGE_WEIGHT_PATH = 'https://storage.googleapis.com/tensorflow/keras-applications/nasnet/NASNet-large.h5'
@@ -287,9 +288,12 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
 
             donor_model_weight_layers = [d_l for d_l in donor_model.layers if len(d_l.weights) > 0]
             j = 0
+            already_copied_layers = []
             for i, l in enumerate([l for l in model.layers if len(l.weights) > 0]):
                 if j >= len(donor_model_weight_layers):
                     break
+                while j in already_copied_layers:
+                    j += 1
                 d_l = donor_model_weight_layers[j]
                 # if l.name != d_l.name: # incorrect names
                 if 'dropout' in l.name and 'dropout' not in d_l.name or \
@@ -298,10 +302,21 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                 if i == 0:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     l.weights[0].assign(new_w)
-                else:
+                    j += 1
+                elif l.name == d_l.name:
                     for (w, d_w) in zip(l.weights, d_l.weights):
                         w.assign(d_w)
-                j += 1
+                    j += 1
+                else:
+                    for k in range(j+1, len(donor_model_weight_layers)):
+                        d_l_next = donor_model_weight_layers[k]
+                        if l.name == d_l_next.name:
+                            for (w, d_n_w) in zip(l.weights, d_l_next.weights):
+                                w.assign(d_n_w)
+                            already_copied_layers.append(k)
+                            break
+                        if k == len(donor_model_weight_layers) -1:
+                            raise ValueError
             assert j == len(donor_model_weight_layers)
 
             if weights != 'imagenet':
@@ -390,6 +405,9 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
             x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                  total_training_steps=None, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
+        elif net_type == NetType.cdo:
+            x = ConcreteDropout(name='scheduled_droppath_%s' % (block_id))(x, training=False)
+
     return x
 
 
