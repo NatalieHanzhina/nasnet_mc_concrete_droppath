@@ -9,7 +9,7 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
         return densenet_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'densenet169_softmax':
         return densenet_fpn(input_shape, channels=3, activation="softmax")
-    elif network == 'nasnet_cdo':
+    elif network == 'nasnet_cdp':
         return nasnet_cdo_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
                              **kwargs)
     elif network == 'nasnet_do':

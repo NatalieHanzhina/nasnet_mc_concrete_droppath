@@ -156,6 +156,11 @@ class ConcreteDropout(Layer):
         self.init_min = tf.math.log(init_min) - tf.math.log(1. - init_min)
         self.init_max = tf.math.log(init_max) - tf.math.log(1. - init_max)
 
+    @tf.function
+    def get_p(self):
+        return tf.nn.sigmoid(self.p_logit[0])
+
+
     def build(self, input_shape=None):
         self.input_spec = InputSpec(shape=input_shape)
         # if not self.layer.built:
@@ -169,21 +174,23 @@ class ConcreteDropout(Layer):
                                              shape=(1,),
                                              initializer=tf.initializers.RandomUniform(self.init_min, self.init_max),
                                              trainable=True)
-        self.p = K.sigmoid(self.p_logit[0])
+        #self.p = K.sigmoid(self.p_logit[0])
+        #self.p = self.add_weight(name='p', trainable=False)
 
         # initialise regulariser / prior KL term
         #assert len(input_shape) == 2, 'this wrapper only supports Dense layers'
         #input_dim = np.prod(input_shape[-1])  # we drop only last dim
         #weight = self.layer.kernel
         #kernel_regularizer = self.weight_regularizer * K.sum(K.square(weight)) / (1. - self.p)
-        dropout_regularizer = self.p * K.log(self.p)
-        dropout_regularizer += (1. - self.p) * K.log(1. - self.p)
+        dropout_regularizer = self.get_p() * K.log(self.get_p())
+        dropout_regularizer += (1. - self.get_p()) * K.log(1. - self.get_p())
         #dropout_regularizer *= self.dropout_regularizer * input_dim
         dropout_regularizer *= self.dropout_regularizer
         #regularizer = K.sum(kernel_regularizer + dropout_regularizer)
         regularizer = dropout_regularizer
         #self.layer.add_loss(regularizer)
         self.add_loss(regularizer)
+
 
     # def call(self, inputs, training=None):
     #     if self.is_mc_dropout:
@@ -196,6 +203,7 @@ class ConcreteDropout(Layer):
     #                                 training=training)
 
     def call(self, inputs, training=None):
+        #tf.print(self.p_logit)
         if self.is_mc_dropout:
             return self.concrete_dropout(inputs)
         else:
@@ -205,7 +213,7 @@ class ConcreteDropout(Layer):
                                     inputs,
                                     training=training)
 
-    def concrete_dropout(self, x):
+    def concrete_dropout_init(self, x):
         '''
         Concrete dropout - used at training time (gradients can be propagated)
         :param x: input
@@ -228,6 +236,41 @@ class ConcreteDropout(Layer):
         x *= random_tensor
         x /= retain_prob
         return x
+
+    def concrete_dropout(self, x):
+        '''
+        Concrete dropout - used at training time (gradients can be propagated)
+        :param x: input
+        :return:  approx. dropped out input
+        '''
+        eps = K.cast_to_floatx(K.epsilon())
+        temp = 0.1
+
+        #tf.print('x_in', tf.reduce_min(x), tf.reduce_max(x))
+        #tf.print(self.get_p())
+        #tf.print(type(K.shape(x)))
+        #tf.print(tf.concat([K.shape(x)[0:1], tf.ones((3,), dtype=K.shape(x).dtype)], axis=0))
+        #tf.print(K.shape(x)[0])
+        #unif_noise = K.random_uniform(shape=K.shape(x)[:1])
+        unif_noise = K.random_uniform(shape=tf.concat([K.shape(x)[0:1], tf.ones((3,), dtype=K.shape(x).dtype)], axis=0))
+        drop_prob = (
+            K.log(self.get_p() + eps)
+            - K.log(1. - self.get_p() + eps)
+            + K.log(unif_noise + eps)
+            - K.log(1. - unif_noise + eps)
+        )
+        drop_prob = K.sigmoid(drop_prob / temp)
+        random_tensor = 1. - drop_prob
+
+        retain_prob = 1. - self.get_p()
+        #tf.print(self.name, ':', K.shape(random_tensor), K.shape(retain_prob))
+        #tf.print(self.name, ':', 1* random_tensor / retain_prob, summarize=K.shape(x).numpy()[0])
+        #tf.print(self.name, ':\n', (1 * random_tensor / retain_prob)[:,0,0,0], summarize=30)
+        x *= random_tensor
+        x /= retain_prob
+        #tf.print('x_out', tf.reduce_min(x), tf.reduce_max(x))
+        return x
+
 
     def compute_output_shape(self, input_shape):
         return input_shape

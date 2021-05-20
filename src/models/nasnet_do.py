@@ -30,7 +30,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 from keras_applications.imagenet_utils import _obtain_input_shape
-from models.nasnet_utils_do import ScheduledDropout
+from models.nasnet_utils_do import ScheduledDropout, ConcreteDropout
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Activation
@@ -51,7 +51,6 @@ from tensorflow.keras.utils import get_file
 from tensorflow.keras.utils import get_source_inputs
 from tensorflow.python.keras.applications.imagenet_utils import correct_pad
 
-from src.models.nasnet_utils_do import ConcreteDropout
 from . import NetType
 
 TF_NASNET_LARGE_WEIGHT_PATH = 'https://storage.googleapis.com/tensorflow/keras-applications/nasnet/NASNet-large.h5'
@@ -406,7 +405,7 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
                                  total_training_steps=None, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
         elif net_type == NetType.cdo:
-            x = ConcreteDropout(name='scheduled_droppath_%s' % (block_id))(x, training=False)
+            x = ConcreteDropout(name='scheduled_droppath_%s' % (block_id))(x, training=True)
 
     return x
 
