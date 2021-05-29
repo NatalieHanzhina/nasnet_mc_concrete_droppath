@@ -1,3 +1,4 @@
+from models.keras.applications import DenseNet169_do
 from models.nasnet_do import NASNet_large_do
 from models.xception_padding import Xception
 from models.xception_padding_do import Xception_do
@@ -7,7 +8,7 @@ from resnetv2 import InceptionResNetV2Same
 from resnetv2_do import InceptionResNetV2Same_do
 from resnexts_do import ResNext50
 from tensorflow.keras import Model, Input
-from tensorflow.keras.applications import DenseNet169
+# from tensorflow.keras.applications import DenseNet169
 from tensorflow.keras.layers import Dropout, UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
 from tensorflow.keras.utils import get_file
 
@@ -414,7 +415,8 @@ def xception_fpn_mc_df(input_shape, channels=1, do_p=0.3, weights='imagenet', ac
 def xception_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
     return xception_fpn_do(input_shape, NetType.mc_dp, channels, do_p, weights, activation)
 
-def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
+
+def densenet_fpn_old(input_shape, channels=1, activation="sigmoid"):
     densenet = DenseNet169(input_shape=input_shape, include_top=False)
     conv1 = densenet.get_layer("conv1/relu").output
     conv2 = densenet.get_layer("pool2_relu").output
@@ -444,6 +446,50 @@ def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
         x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
     model = Model(densenet.input, x)
     return model
+
+
+def densenet_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoid"):
+    return densenet_fpn_do(input_shape, NetType.vanilla, channels, None, weights, activation)
+
+
+def densenet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    densenet = DenseNet169_do(input_shape=input_shape, net_type=net_type, do_p=do_p, weights=weights, include_top=False)
+    conv1 = densenet.get_layer("conv1/relu").output
+    conv2 = densenet.get_layer("pool2_relu").output
+    conv3 = densenet.get_layer("pool3_relu").output
+    conv4 = densenet.get_layer("pool4_relu").output
+    conv5 = densenet.get_layer("bn").output
+    conv5 = Activation("relu", name="conv5_relu")(conv5)
+
+    P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
+    x = concatenate(
+        [
+            prediction_fpn_block(P5, "P5", (8, 8)),
+            prediction_fpn_block(P4, "P4", (4, 4)),
+            prediction_fpn_block(P3, "P3", (2, 2)),
+            prediction_fpn_block(P2, "P2"),
+        ]
+    )
+    x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
+    x = decoder_block_no_bn(x, 128, conv1, 'up4')
+    x = UpSampling2D()(x)
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
+    x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
+    if activation == 'softmax':
+        name = 'mask_softmax'
+        x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
+    else:
+        x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
+    model = Model(densenet.input, x)
+    return model
+
+
+def densenet_fpn_mc(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return densenet_fpn_do(input_shape, NetType.mc, channels, do_p, weights, activation)
+
+
+def densenet_fpn_mc_df(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return densenet_fpn_do(input_shape, NetType.mc_df, channels, do_p, weights, activation)
 
 
 def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_steps=None, weights='imagenet', activation="softmax"):
@@ -503,7 +549,7 @@ def nasnet_fpn_mc_sch_dp(input_shape, channels=1, do_p=0.3, resize_size=None, to
                          weights='imagenet', activation="sigmoid"):
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
-    return nasnet_fpn_do(input_shape, NetType.mc_dp, channels, do_p, total_training_steps, weights, activation)
+    return nasnet_fpn_do(input_shape, NetType.mc_dp, channels, do_p, total_training_steps, weights, activation)  #TODO: refactor NetType to mc_sch_dp
 
 
 def inception_resnet_v2_fpn_old(input_shape, channels=1, activation="sigmoid"):
