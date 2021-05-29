@@ -1,7 +1,7 @@
-from models.unets_do import densenet_fpn, inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, \
-    inception_resnet_v2_fpn_sch_do, nasnet_cdo_fpn, nasnet_do_fpn, nasnet_scd_fpn, nasnet_fpn_mc_sch_dp, resnet152_fpn, \
-    resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn, resnext50_fpn, \
-    xception_fpn, xception_fpn_mc, xception_fpn_mc_dp
+from models.unets_do import inception_resnet_v2_fpn, inception_resnet_v2_fpn_mc_dp, \
+    inception_resnet_v2_fpn_sch_do, nasnet_cdp_fpn, nasnet_do_fpn, nasnet_scd_fpn, nasnet_fpn_mc_sch_dp, \
+    resnet152_fpn, resnet152_fpn_mc, resnet152_fpn_mc_df, resnet152_fpn_mc_dp, resnet101_fpn, resnet50_fpn,\
+    resnext50_fpn, xception_fpn, xception_fpn_mc, xception_fpn_mc_df, xception_fpn_mc_dp
 
 
 def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
@@ -10,8 +10,8 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
     elif network == 'densenet169_softmax':
         return densenet_fpn(input_shape, channels=3, activation="softmax")
     elif network == 'nasnet_cdp':
-        return nasnet_cdo_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
-                             **kwargs)
+        return nasnet_cdp_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
+                              **kwargs)
     elif network == 'nasnet_do':
         return nasnet_do_fpn(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid",
                              **kwargs)
@@ -26,11 +26,11 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
     elif network == 'resnet152_2':
         return resnet152_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet152_2_mc':
-        return resnet152_fpn_mc(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights, activation="sigmoid")
+        return resnet152_fpn_mc(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet152_2_mc_df':
-        return resnet152_fpn_mc_df(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights, activation="sigmoid")
+        return resnet152_fpn_mc_df(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet152_2_mc_dp':
-        return resnet152_fpn_mc_dp(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights, activation="sigmoid")
+        return resnet152_fpn_mc_dp(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnet101_2':
         return resnet101_fpn(input_shape, channels=2, activation="sigmoid")
     elif network == 'resnet50_2':
@@ -38,11 +38,11 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
     elif network == 'resnetv2':
         return inception_resnet_v2_fpn(input_shape, channels=2, weights=pretrained_weights, activation="sigmoid")
     elif network == 'resnetv2_mc_dp':
-        return inception_resnet_v2_fpn_mc_dp(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights,
+        return inception_resnet_v2_fpn_mc_dp(input_shape, channels=2, do_p=do_p, weights=pretrained_weights,
                                              activation="sigmoid")
     elif network == 'resnetv2_sch_dp':
-        return inception_resnet_v2_fpn_sch_do(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights,
-                                             activation="sigmoid", **kwargs)
+        return inception_resnet_v2_fpn_sch_do(input_shape, channels=2, do_p=do_p, weights=pretrained_weights,
+                                              activation="sigmoid", **kwargs)
     elif network == 'resnetv2_3':
         return inception_resnet_v2_fpn(input_shape, channels=3, activation="sigmoid")
     elif network == 'resnet101_unet_2':
@@ -52,8 +52,10 @@ def make_model(network, input_shape, pretrained_weights, do_p=0.3, **kwargs):
     elif network == 'xception_fpn':
         return xception_fpn(input_shape, channels=2, weights=pretrained_weights, activation="sigmoid")
     elif network == 'xception_fpn_mc':
-        return xception_fpn_mc(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights, activation="sigmoid")
+        return xception_fpn_mc(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
+    elif network == 'xception_fpn_mc_df':
+        return xception_fpn_mc_df(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
     elif network == 'xception_fpn_mc_dp':
-        return xception_fpn_mc_dp(input_shape, channels=2, dp_p=do_p, weights=pretrained_weights, activation="sigmoid")
+        return xception_fpn_mc_dp(input_shape, channels=2, do_p=do_p, weights=pretrained_weights, activation="sigmoid")
     else:
         raise ValueError('unknown network ' + network)

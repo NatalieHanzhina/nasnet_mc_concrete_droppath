@@ -50,7 +50,7 @@ def conv_bn_relu(input, num_channel, kernel_size, stride, name, padding='same', 
 
 
 def conv_bn_relu_do(input, num_channel, kernel_size, stride, name, padding='same', net_type=NetType.mc, bn_axis=-1, bn_momentum=0.99,
-                    bn_scale=True, use_bias=True, dp_p=0.3):
+                    bn_scale=True, use_bias=True, do_p=0.3):
     x = Conv2D(filters=num_channel, kernel_size=(kernel_size, kernel_size),
                strides=stride, padding=padding,
                kernel_initializer="he_normal",
@@ -58,9 +58,9 @@ def conv_bn_relu_do(input, num_channel, kernel_size, stride, name, padding='same
                name=name + "_conv")(input)
     x = BatchNormalization(name=name + '_bn', scale=bn_scale, axis=bn_axis, momentum=bn_momentum, epsilon=1.001e-5, )(x)
     if net_type == net_type.mc:
-        x = Dropout(dp_p)(x, training=True)
+        x = Dropout(do_p)(x, training=True)
     elif net_type == net_type.mc_df:
-        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation('relu', name=name + '_relu')(x)
     return x
 
@@ -87,16 +87,16 @@ def conv_relu(input, num_channel, kernel_size, stride, name, padding='same', use
 
 
 def conv_relu_do(input, num_channel, kernel_size, stride, name, padding='same', use_bias=True, activation='relu',
-                 net_type=NetType.mc, dp_p=0.3):
+                 net_type=NetType.mc, do_p=0.3):
     x = Conv2D(filters=num_channel, kernel_size=(kernel_size, kernel_size),
                strides=stride, padding=padding,
                kernel_initializer="he_normal",
                use_bias=use_bias,
                name=name + "_conv")(input)
     if net_type == net_type.mc:
-        x = Dropout(dp_p)(x, training=True)
+        x = Dropout(do_p)(x, training=True)
     elif net_type == net_type.mc_df:
-        x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Activation(activation, name=name + '_relu')(x)
     return x
 
@@ -147,15 +147,15 @@ def decoder_block_no_bn(input, filters, skip, block_name, activation='relu'):
     return x
 
 
-def decoder_block_no_bn_do(input, filters, skip, block_name, activation='relu', net_type=NetType.mc, dp_p=0.3):
+def decoder_block_no_bn_do(input, filters, skip, block_name, activation='relu', net_type=NetType.mc, do_p=0.3):
     x = UpSampling2D()(input)
     x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation,
-                     net_type=net_type, dp_p=dp_p)
+                     net_type=net_type, do_p=do_p)
     # if net_type==NetType.mc_dp:
     #     Dropout() ???
     x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
     x = conv_relu_do(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation,
-                     net_type=net_type, dp_p=dp_p)
+                     net_type=net_type, do_p=do_p)
     return x
 
 def prediction_fpn_block(x, name, upsample=None):
@@ -166,9 +166,9 @@ def prediction_fpn_block(x, name, upsample=None):
     return x
 
 
-def prediction_fpn_block_do(x, name, upsample=None, net_type=NetType.mc, dp_p=0.3):
-    x = conv_relu_do(x, 128, 3, stride=1, name="prediction_" + name + "_1", net_type=net_type, dp_p=dp_p)
-    x = conv_relu_do(x, 128, 3, stride=1, name="prediction_" + name + "_2", net_type=net_type, dp_p=dp_p)
+def prediction_fpn_block_do(x, name, upsample=None, net_type=NetType.mc, do_p=0.3):
+    x = conv_relu_do(x, 128, 3, stride=1, name="prediction_" + name + "_1", net_type=net_type, do_p=do_p)
+    x = conv_relu_do(x, 128, 3, stride=1, name="prediction_" + name + "_2", net_type=net_type, do_p=do_p)
     if upsample:
         x = UpSampling2D(upsample)(x)
     return x
@@ -229,16 +229,16 @@ def resnet152_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='image
     return model
 
 
-def resnet152_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    return resnet152_fpn_do(input_shape, NetType.mc, channels, dp_p, weights, activation)
+def resnet152_fpn_mc(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
+    return resnet152_fpn_do(input_shape, NetType.mc, channels, do_p, weights, activation)
 
 
-def resnet152_fpn_mc_df(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    return resnet152_fpn_do(input_shape, NetType.mc_df, channels, dp_p, weights, activation)
+def resnet152_fpn_mc_df(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
+    return resnet152_fpn_do(input_shape, NetType.mc_df, channels, do_p, weights, activation)
 
 
-def resnet152_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
-    return resnet152_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
+def resnet152_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
+    return resnet152_fpn_do(input_shape, NetType.mc_dp, channels, do_p, weights, activation)
 
 
 def resnet50_fpn(input_shape, channels=1, activation="softmax"):
@@ -370,8 +370,8 @@ def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoi
     return model
 
 
-def xception_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    xception_do = Xception_do(net_type=net_type, input_shape=input_shape, dp_p=dp_p, weights=weights, include_top=False)
+def xception_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    xception_do = Xception_do(net_type=net_type, input_shape=input_shape, do_p=do_p, weights=weights, include_top=False)
     conv1 = xception_do.get_layer("block1_conv2_act").output
     conv2 = xception_do.get_layer("block3_sepconv2_bn").output
     conv3 = xception_do.get_layer("block4_sepconv2_bn").output
@@ -383,17 +383,17 @@ def xception_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagen
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
-            prediction_fpn_block_do(P5, "P5", (8, 8), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P4, "P4", (4, 4), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P3, "P3", (2, 2), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P2, "P2", dp_p=dp_p, net_type=net_type),
+            prediction_fpn_block_do(P5, "P5", (8, 8), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P4, "P4", (4, 4), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P3, "P3", (2, 2), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P2, "P2", do_p=do_p, net_type=net_type),
         ]
     )
-    x = conv_bn_relu_do(x, 256, 3, (1, 1), name="aggregation", net_type=net_type, dp_p=dp_p)
-    x = decoder_block_no_bn_do(x, 128, conv1, 'up4', net_type=net_type, dp_p=dp_p)
+    x = conv_bn_relu_do(x, 256, 3, (1, 1), name="aggregation", net_type=net_type, do_p=do_p)
+    x = decoder_block_no_bn_do(x, 128, conv1, 'up4', net_type=net_type, do_p=do_p)
     x = UpSampling2D()(x)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv1", net_type=net_type, dp_p=dp_p)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type, dp_p=dp_p)
+    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv1", net_type=net_type, do_p=do_p)
+    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type, do_p=do_p)
     if activation == 'softmax':
         name = 'mask_softmax'
         x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
@@ -403,13 +403,16 @@ def xception_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagen
     return model
 
 
-def xception_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    return xception_fpn_do(input_shape, NetType.mc, channels, dp_p, weights, activation)
+def xception_fpn_mc(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return xception_fpn_do(input_shape, NetType.mc, channels, do_p, weights, activation)
 
 
-def xception_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    return xception_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
+def xception_fpn_mc_df(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return xception_fpn_do(input_shape, NetType.mc_df, channels, do_p, weights, activation)
 
+
+def xception_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return xception_fpn_do(input_shape, NetType.mc_dp, channels, do_p, weights, activation)
 
 def densenet_fpn(input_shape, channels=1, activation="sigmoid"):
     densenet = DenseNet169(input_shape=input_shape, include_top=False)
@@ -475,11 +478,11 @@ def nasnet_fpn_do(input_shape, net_type, channels=1, do_p=0.3, total_training_st
     return model
 
 
-def nasnet_cdo_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet',
-                  activation="sigmoid"):
+def nasnet_cdp_fpn(input_shape, channels=1, do_p=None, resize_size=None, total_training_steps=None, weights='imagenet',
+                   activation="sigmoid"):
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
-    return nasnet_fpn_do(input_shape, NetType.cdo, channels, weights=weights, activation=activation)
+    return nasnet_fpn_do(input_shape, NetType.cdp, channels, weights=weights, activation=activation)
 
 
 def nasnet_do_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet',
@@ -534,26 +537,26 @@ def inception_resnet_v2_fpn(input_shape, channels=1, weights='imagenet', activat
     return inception_resnet_v2_fpn_do(input_shape, NetType.vanilla, channels, None, weights, activation)
 
 
-def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid",
+def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid",
                                **kwargs):
-    inc_resv2_do = InceptionResNetV2Same_do(net_type=net_type, input_shape=input_shape, do_p=dp_p, weights=weights,
-                                         include_top=False, **kwargs)
+    inc_resv2_do = InceptionResNetV2Same_do(net_type=net_type, input_shape=input_shape, do_p=do_p, weights=weights,
+                                            include_top=False, **kwargs)
     conv1, conv2, conv3, conv4, conv5 = inc_resv2_do.output
 
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
-            prediction_fpn_block_do(P5, "P5", (8, 8), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P4, "P4", (4, 4), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P3, "P3", (2, 2), dp_p=dp_p, net_type=net_type),
-            prediction_fpn_block_do(P2, "P2", dp_p=dp_p, net_type=net_type),
+            prediction_fpn_block_do(P5, "P5", (8, 8), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P4, "P4", (4, 4), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P3, "P3", (2, 2), do_p=do_p, net_type=net_type),
+            prediction_fpn_block_do(P2, "P2", do_p=do_p, net_type=net_type),
         ]
     )
-    x = conv_bn_relu_do(x, 256, 3, (1, 1), name="aggregation", net_type=net_type, dp_p=dp_p)
-    x = decoder_block_no_bn_do(x, 128, conv1, 'up4', net_type=net_type, dp_p=dp_p)
+    x = conv_bn_relu_do(x, 256, 3, (1, 1), name="aggregation", net_type=net_type, do_p=do_p)
+    x = decoder_block_no_bn_do(x, 128, conv1, 'up4', net_type=net_type, do_p=do_p)
     x = UpSampling2D()(x)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv1", net_type=net_type, dp_p=dp_p)
-    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type, dp_p=dp_p)
+    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv1", net_type=net_type, do_p=do_p)
+    x = conv_relu_do(x, 64, 3, (1, 1), name="up5_conv2", net_type=net_type, do_p=do_p)
     if activation == 'softmax':
         name = 'mask_softmax'
         x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
@@ -563,12 +566,12 @@ def inception_resnet_v2_fpn_do(input_shape, net_type, channels=1, dp_p=0.3, weig
     return model
 
 
-def inception_resnet_v2_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    return inception_resnet_v2_fpn_do(input_shape, NetType.mc_dp, channels, dp_p, weights, activation)
+def inception_resnet_v2_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return inception_resnet_v2_fpn_do(input_shape, NetType.mc_dp, channels, do_p, weights, activation)
 
 
-def inception_resnet_v2_fpn_sch_do(input_shape, channels=1, dp_p=0.3, total_training_steps=None,
+def inception_resnet_v2_fpn_sch_do(input_shape, channels=1, do_p=0.3, total_training_steps=None,
                                    weights='imagenet', activation="sigmoid", resize_size=None):
-    return inception_resnet_v2_fpn_do(input_shape, NetType.sdp, channels, dp_p, weights,
+    return inception_resnet_v2_fpn_do(input_shape, NetType.sdp, channels, do_p, weights,
                                       activation, total_training_steps=total_training_steps)
 

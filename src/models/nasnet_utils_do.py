@@ -115,7 +115,7 @@ class ScheduledDropout(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class ConcreteDropout(Layer):
+class ConcreteDroppath(Layer):
     """Applies Concrete Dropout to the input.
         The Dropout layer randomly sets input units to 0 with a frequency of `rate`
         at each step during training time, which helps prevent overfitting.
@@ -146,7 +146,7 @@ class ConcreteDropout(Layer):
     def __init__(self, weight_regularizer=1e-6, dropout_regularizer=1e-5,
                  init_min=0.1, init_max=0.1, is_mc_dropout=True, **kwargs):
         assert 'kernel_regularizer' not in kwargs
-        super(ConcreteDropout, self).__init__(**kwargs)
+        super(ConcreteDroppath, self).__init__(**kwargs)
         self.weight_regularizer = weight_regularizer
         self.dropout_regularizer = dropout_regularizer
         self.is_mc_dropout = is_mc_dropout
@@ -166,7 +166,7 @@ class ConcreteDropout(Layer):
         # if not self.layer.built:
         #     self.layer.build(input_shape)
         #     self.layer.built = True
-        super(ConcreteDropout, self).build(input_shape)  # this is very weird.. we must call super before we add new losses
+        super(ConcreteDroppath, self).build(input_shape)  # this is very weird.. we must call super before we add new losses
 
         # initialise p
         #self.p_logit = self.layer.add_weight(name='p_logit',
@@ -191,7 +191,6 @@ class ConcreteDropout(Layer):
         #self.layer.add_loss(regularizer)
         self.add_loss(regularizer)
 
-
     # def call(self, inputs, training=None):
     #     if self.is_mc_dropout:
     #         return self.layer.call(self.concrete_dropout(inputs))
@@ -212,30 +211,6 @@ class ConcreteDropout(Layer):
             return K.in_train_phase(relaxed_dropped_inputs,
                                     inputs,
                                     training=training)
-
-    def concrete_dropout_init(self, x):
-        '''
-        Concrete dropout - used at training time (gradients can be propagated)
-        :param x: input
-        :return:  approx. dropped out input
-        '''
-        eps = K.cast_to_floatx(K.epsilon())
-        temp = 0.1
-
-        unif_noise = K.random_uniform(shape=K.shape(x))
-        drop_prob = (
-            K.log(self.p + eps)
-            - K.log(1. - self.p + eps)
-            + K.log(unif_noise + eps)
-            - K.log(1. - unif_noise + eps)
-        )
-        drop_prob = K.sigmoid(drop_prob / temp)
-        random_tensor = 1. - drop_prob
-
-        retain_prob = 1. - self.p
-        x *= random_tensor
-        x /= retain_prob
-        return x
 
     def concrete_dropout(self, x):
         '''
@@ -271,7 +246,6 @@ class ConcreteDropout(Layer):
         #tf.print('x_out', tf.reduce_min(x), tf.reduce_max(x))
         return x
 
-
     def compute_output_shape(self, input_shape):
         return input_shape
 
@@ -283,5 +257,5 @@ class ConcreteDropout(Layer):
             'total_training_steps': self._total_training_steps,
             'seed': self.seed
         }
-        base_config = super(ConcreteDropout, self).get_config()
+        base_config = super(ConcreteDroppath, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

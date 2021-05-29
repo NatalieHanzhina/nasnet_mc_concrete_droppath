@@ -17,7 +17,7 @@ class NetType(Enum):
     mc_dp = 'mc_dp'
 
 
-def ResNet_mc(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
+def ResNet_mc(inputs, blocks, block, include_top=True, net_type=NetType.pure, do_p=0.3, classes=1000, numerical_names=None, *args, **kwargs):
     """
     Constructs a `keras.models.Model` object using the given block count.
 
@@ -65,9 +65,9 @@ def ResNet_mc(inputs, blocks, block, include_top=True, net_type=NetType.pure, dp
     x = keras.layers.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name="conv1")(x)
     x = keras.layers.BatchNormalization(axis=axis, epsilon=1e-5, name="bn_conv1")(x)
     if net_type == NetType.mc:
-        x = keras.layers.Dropout(dp_p)(x, training=True)
+        x = keras.layers.Dropout(do_p)(x, training=True)
     elif net_type == NetType.mc_dp:
-        x = keras.layers.Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+        x = keras.layers.Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = keras.layers.Activation("relu", name="conv1_relu")(x)
     x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name="pool1")(x)
 

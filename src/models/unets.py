@@ -47,14 +47,14 @@ def conv_bn_relu(input, num_channel, kernel_size, stride, name, padding='same', 
 
 
 def conv_bn_relu_dp(input, num_channel, kernel_size, stride, name, padding='same', bn_axis=-1, bn_momentum=0.99,
-                    bn_scale=True, use_bias=True, dp_p=0.3):
+                    bn_scale=True, use_bias=True, do_p=0.3):
     x = Conv2D(filters=num_channel, kernel_size=(kernel_size, kernel_size),
                strides=stride, padding=padding,
                kernel_initializer="he_normal",
                use_bias=use_bias,
                name=name + "_conv")(input)
     x = BatchNormalization(name=name + '_bn', scale=bn_scale, axis=bn_axis, momentum=bn_momentum, epsilon=1.001e-5, )(x)
-    x = Dropout(dp_p)(x)
+    x = Dropout(do_p)(x)
     x = Activation('relu', name=name + '_relu')(x)
     return x
 
@@ -80,13 +80,13 @@ def conv_relu(input, num_channel, kernel_size, stride, name, padding='same', use
     return x
 
 
-def conv_relu_dp(input, num_channel, kernel_size, stride, name, padding='same', use_bias=True, activation='relu', dp_p=0.3):
+def conv_relu_dp(input, num_channel, kernel_size, stride, name, padding='same', use_bias=True, activation='relu', do_p=0.3):
     x = Conv2D(filters=num_channel, kernel_size=(kernel_size, kernel_size),
                strides=stride, padding=padding,
                kernel_initializer="he_normal",
                use_bias=use_bias,
                name=name + "_conv")(input)
-    x = Dropout(dp_p)(x)
+    x = Dropout(do_p)(x)
     x = Activation(activation, name=name + '_relu')(x)
     return x
 
@@ -107,11 +107,11 @@ def decoder_block_no_bn(input, filters, skip, block_name, activation='relu'):
     return x
 
 
-def decoder_block_no_bn_dp(input, filters, skip, block_name, activation='relu', dp_p=0.3):
+def decoder_block_no_bn_dp(input, filters, skip, block_name, activation='relu', do_p=0.3):
     x = UpSampling2D()(input)
-    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation, dp_p=dp_p)
+    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv1', activation=activation, do_p=do_p)
     x = concatenate([x, skip], axis=-1, name=block_name + '_concat')
-    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation, dp_p=dp_p)
+    x = conv_relu_dp(x, filters, 3, stride=1, padding='same', name=block_name + '_conv2', activation=activation, do_p=do_p)
     return x
 
 
@@ -154,9 +154,9 @@ def prediction_fpn_block(x, name, upsample=None):
     return x
 
 
-def prediction_fpn_block_dp(x, name, upsample=None, dp_p=0.3):
-    x = conv_relu_dp(x, 128, 3, stride=1, name="predcition_" + name + "_1", dp_p=dp_p)
-    x = conv_relu_dp(x, 128, 3, stride=1, name="prediction_" + name + "_2", dp_p=dp_p)
+def prediction_fpn_block_dp(x, name, upsample=None, do_p=0.3):
+    x = conv_relu_dp(x, 128, 3, stride=1, name="predcition_" + name + "_1", do_p=do_p)
+    x = conv_relu_dp(x, 128, 3, stride=1, name="prediction_" + name + "_2", do_p=do_p)
     if upsample:
         x = UpSampling2D(upsample)(x)
     return x
@@ -191,13 +191,13 @@ def resnet152_fpn(input_shape, channels=1, activation="softmax"):
     return model
 
 
-def resnet152_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
+def resnet152_fpn_mc(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
     img_input = Input(input_shape)
     if weights == 'imagenet':
         weights_file = download_resnet_imagenet("resnet152")
     else:
         raise NotImplementedError('Only imagenet weights can be loaded')
-    resnet_base = ResNet152_mc(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
+    resnet_base = ResNet152_mc(img_input, include_top=True, do_p=do_p, weights=weights_file)
     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
     conv1 = resnet_base.get_layer("conv1_relu").output
     conv2 = resnet_base.get_layer("res2c_relu").output
@@ -224,13 +224,13 @@ def resnet152_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', acti
     return model
 
 
-def resnet152_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="softmax"):
+def resnet152_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="softmax"):
     img_input = Input(input_shape)
     if weights == 'imagenet':
         weights_file = download_resnet_imagenet("resnet152")
     else:
         raise NotImplementedError('Only imagenet weights can be loaded')
-    resnet_base = ResNet152_mc_dp(img_input, include_top=True, dp_p=dp_p, weights=weights_file)
+    resnet_base = ResNet152_mc_dp(img_input, include_top=True, do_p=do_p, weights=weights_file)
     #resnet_base.load_weights(download_resnet_imagenet("resnet152"))
     conv1 = resnet_base.get_layer("conv1_relu").output
     conv2 = resnet_base.get_layer("res2c_relu").output
@@ -247,14 +247,14 @@ def resnet152_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', a
         ]
     )
     x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = decoder_block_no_bn(x, 128, conv1, 'up4')
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = UpSampling2D()(x)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = Conv2D(channels, (1, 1), name="mask", kernel_initializer="he_normal")(x)
     x = Activation(activation)(x)
     model = Model(img_input, x)
@@ -358,8 +358,8 @@ def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoi
     return model
 
 
-def xception_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    xception_mc = Xception_mc_dropout(input_shape=input_shape, p=dp_p, weights=weights, include_top=False)
+def xception_fpn_mc(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    xception_mc = Xception_mc_dropout(input_shape=input_shape, p=do_p, weights=weights, include_top=False)
     conv1 = xception_mc.get_layer("block1_conv2_act").output
     conv2 = xception_mc.get_layer("block3_sepconv2_bn").output
     conv3 = xception_mc.get_layer("block4_sepconv2_bn").output
@@ -371,17 +371,17 @@ def xception_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activ
     P1, P2, P3, P4, P5 = create_pyramid_features(conv1, conv2, conv3, conv4, conv5)
     x = concatenate(
         [
-            prediction_fpn_block_dp(P5, "P5", (8, 8), dp_p=dp_p),
-            prediction_fpn_block_dp(P4, "P4", (4, 4), dp_p=dp_p),
-            prediction_fpn_block_dp(P3, "P3", (2, 2), dp_p=dp_p),
-            prediction_fpn_block_dp(P2, "P2", dp_p=dp_p),
+            prediction_fpn_block_dp(P5, "P5", (8, 8), do_p=do_p),
+            prediction_fpn_block_dp(P4, "P4", (4, 4), do_p=do_p),
+            prediction_fpn_block_dp(P3, "P3", (2, 2), do_p=do_p),
+            prediction_fpn_block_dp(P2, "P2", do_p=do_p),
         ]
     )
-    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation", dp_p=dp_p)
-    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4', dp_p=dp_p)
+    x = conv_bn_relu_dp(x, 256, 3, (1, 1), name="aggregation", do_p=do_p)
+    x = decoder_block_no_bn_dp(x, 128, conv1, 'up4', do_p=do_p)
     x = UpSampling2D()(x)
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1", dp_p=dp_p)
-    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2", dp_p=dp_p)
+    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv1", do_p=do_p)
+    x = conv_relu_dp(x, 64, 3, (1, 1), name="up5_conv2", do_p=do_p)
     if activation == 'softmax':
         name = 'mask_softmax'
         x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)
@@ -391,8 +391,8 @@ def xception_fpn_mc(input_shape, channels=1, dp_p=0.3, weights='imagenet', activ
     return model
 
 
-def xception_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', activation="sigmoid"):
-    xception_mc = Xception_mc_dp_dropout(input_shape=input_shape, p=dp_p, weights=weights, include_top=False)
+def xception_fpn_mc_dp(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    xception_mc = Xception_mc_dp_dropout(input_shape=input_shape, p=do_p, weights=weights, include_top=False)
     conv1 = xception_mc.get_layer("block1_conv2_act").output
     conv2 = xception_mc.get_layer("block3_sepconv2_bn").output
     conv3 = xception_mc.get_layer("block4_sepconv2_bn").output
@@ -411,14 +411,14 @@ def xception_fpn_mc_dp(input_shape, channels=1, dp_p=0.3, weights='imagenet', ac
         ]
     )
     x = conv_bn_relu(x, 256, 3, (1, 1), name="aggregation")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = decoder_block_no_bn(x, 128, conv1, 'up4')
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = UpSampling2D()(x)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv1")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     x = conv_relu(x, 64, 3, (1, 1), name="up5_conv2")
-    x = Dropout(dp_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+    x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
     if activation == 'softmax':
         name = 'mask_softmax'
         x = Conv2D(channels, (1, 1), activation=activation, name=name)(x)

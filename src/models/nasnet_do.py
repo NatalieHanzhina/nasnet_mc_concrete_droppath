@@ -30,7 +30,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 from keras_applications.imagenet_utils import _obtain_input_shape
-from models.nasnet_utils_do import ScheduledDropout, ConcreteDropout
+from models.nasnet_utils_do import ScheduledDropout, ConcreteDroppath
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Activation
@@ -404,8 +404,8 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
             x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
                                  total_training_steps=None, name='scheduled_droppath_%s' % (block_id))\
                 (x, training=True)
-        elif net_type == NetType.cdo:
-            x = ConcreteDropout(name='scheduled_droppath_%s' % (block_id))(x, training=True)
+        elif net_type == NetType.cdp:
+            x = ConcreteDroppath(name='scheduled_droppath_%s' % (block_id))(x, training=True)
 
     return x
 
