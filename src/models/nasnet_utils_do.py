@@ -218,6 +218,8 @@ class ConcreteDroppath(Layer):
         :param x: input
         :return:  approx. dropped out input
         '''
+
+        x_init = tf.identity(x)
         eps = K.cast_to_floatx(K.epsilon())
         temp = 0.1
 
@@ -226,7 +228,6 @@ class ConcreteDroppath(Layer):
         #tf.print(type(K.shape(x)))
         #tf.print(tf.concat([K.shape(x)[0:1], tf.ones((3,), dtype=K.shape(x).dtype)], axis=0))
         #tf.print(K.shape(x)[0])
-        #unif_noise = K.random_uniform(shape=K.shape(x)[:1])
         unif_noise = K.random_uniform(shape=tf.concat([K.shape(x)[0:1], tf.ones((3,), dtype=K.shape(x).dtype)], axis=0))
         drop_prob = (
             K.log(self.get_p() + eps)
@@ -239,11 +240,13 @@ class ConcreteDroppath(Layer):
 
         retain_prob = 1. - self.get_p()
         #tf.print(self.name, ':', K.shape(random_tensor), K.shape(retain_prob))
-        #tf.print(self.name, ':', 1* random_tensor / retain_prob, summarize=K.shape(x).numpy()[0])
+        #tf.print(self.name, ':\n', (1* random_tensor / retain_prob)[:,0,0,0], '\n', summarize=30)
+        #tf.print(self.name, ':\n', self.get_p(), '\n', summarize=30)
         #tf.print(self.name, ':\n', (1 * random_tensor / retain_prob)[:,0,0,0], summarize=30)
         x *= random_tensor
         x /= retain_prob
         #tf.print('x_out', tf.reduce_min(x), tf.reduce_max(x))
+        #tf.print(self.name, ':\n', tf.reduce_mean(x-x_init, axis=(1,2,3)), '\n', summarize=30)
         return x
 
     def compute_output_shape(self, input_shape):

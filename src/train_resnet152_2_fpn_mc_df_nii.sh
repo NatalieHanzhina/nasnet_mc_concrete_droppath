@@ -17,6 +17,6 @@ python train.py \
 --steps_per_epoch 500 \
 --epochs 400 \
 --preprocessing_function caffe \
---images_dir /media/disk1/mkashirin/mri_data/data_nii/images \
---masks_dir /media/disk1/mkashirin/mri_data/data_nii/masks \
+--images_dir /mnt/tank/scratch/mkashirin/datasets/mri_data/data_nii/images  \
+--masks_dir /mnt/tank/scratch/mkashirin/datasets/mri_data/data_nii/masks  \
 --log_dir resnet152_2_mc_df=0.3_nii
