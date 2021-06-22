@@ -1,4 +1,4 @@
-from models.keras.applications import DenseNet169_do
+from models.densenet_do import DenseNet169_do
 from models.nasnet_do import NASNet_large_do
 from models.xception_padding import Xception
 from models.xception_padding_do import Xception_do
@@ -8,7 +8,7 @@ from resnetv2 import InceptionResNetV2Same
 from resnetv2_do import InceptionResNetV2Same_do
 from resnexts_do import ResNext50
 from tensorflow.keras import Model, Input
-# from tensorflow.keras.applications import DenseNet169
+from tensorflow.keras.applications import DenseNet169
 from tensorflow.keras.layers import Dropout, UpSampling2D, Conv2D, BatchNormalization, Activation, concatenate, Add
 from tensorflow.keras.utils import get_file
 
@@ -338,7 +338,7 @@ def resnext50_fpn(input_shape, channels=1, cardinality=32, activation="softmax")
     return model
 
 
-def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoid"):
+def xception_fpn_old(input_shape, channels=1, weights='imagenet', activation="sigmoid"):
     xception = Xception(input_shape=input_shape, weights=weights, include_top=False)
     conv1 = xception.get_layer("block1_conv2_act").output
     conv2 = xception.get_layer("block3_sepconv2_bn").output
@@ -369,6 +369,10 @@ def xception_fpn(input_shape, channels=1, weights='imagenet', activation="sigmoi
         x = Conv2D(channels, (1, 1), activation=activation, name="mask")(x)
     model = Model(xception.input, x)
     return model
+
+
+def xception_fpn(input_shape, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
+    return xception_fpn_do(input_shape, NetType.vanilla, channels, do_p, weights, activation)
 
 
 def xception_fpn_do(input_shape, net_type, channels=1, do_p=0.3, weights='imagenet', activation="sigmoid"):
@@ -536,6 +540,13 @@ def nasnet_do_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_tra
     if resize_size is not None:
         input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
     return nasnet_fpn_do(input_shape, NetType.mc, channels, do_p, weights=weights, activation=activation)
+
+
+def nasnet_df_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None, weights='imagenet',
+                  activation="sigmoid"):
+    if resize_size is not None:
+        input_shape = (*((resize_size, resize_size) if isinstance(resize_size, int) else resize_size), input_shape[2])
+    return nasnet_fpn_do(input_shape, NetType.mc_df, channels, do_p, weights=weights, activation=activation)
 
 
 def nasnet_scd_fpn(input_shape, channels=1, do_p=0.3, resize_size=None, total_training_steps=None,
