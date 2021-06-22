@@ -98,7 +98,7 @@ def main():
     train_generator = dataset.train_generator((args.crop_size, args.crop_size), (args.resize_size, args.resize_size), args.preprocessing_function, random_transform, batch_size=args.batch_size)
     val_generator = dataset.val_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
     #best_model_file = '{}/best_{}{}_fold{}.h5'.format(args.models_dir, args.alias, args.network,fold)
-    best_model_file = '{}/best_{}{}.h5'.format(args.models_dir, args.alias, args.network)
+    best_model_file = '{}/best_{}_{}.h5'.format(args.models_dir, args.alias, args.network)
 
     best_model = ModelCheckpointMGPU(model, filepath=best_model_file, monitor='val_loss',
                                      verbose=1,
@@ -107,7 +107,7 @@ def main():
                                      save_best_only=True,
                                      save_weights_only=True)
     #last_model_file = '{}/last_{}{}_fold{}.h5'.format(args.models_dir, args.alias, args.network,fold)
-    last_model_file = '{}/last_{}{}.h5'.format(args.models_dir, args.alias, args.network)
+    last_model_file = '{}/last_{}_{}.h5'.format(args.models_dir, args.alias, args.network)
 
     last_model = ModelCheckpointMGPU(model, filepath=last_model_file, monitor='val_loss',
                                      verbose=1,
