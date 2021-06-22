@@ -24,8 +24,8 @@ from tensorflow.keras.utils import get_source_inputs
 
 from . import NetType
 
-TF_WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/densenet169_weights_tf_dim_ordering_tf_kernels.h5'
-TF_WEIGHTS_PATH_NO_TOP = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/densenet169_weights_tf_dim_ordering_tf_kernels_notop.h5'
+TF_WEIGHTS_PATH = 'https://storage.googleapis.com/tensorflow/keras-applications/densenet/densenet169_weights_tf_dim_ordering_tf_kernels.h5'
+TF_WEIGHTS_PATH_NO_TOP = 'https://storage.googleapis.com/tensorflow/keras-applications/densenet/densenet169_weights_tf_dim_ordering_tf_kernels_notop.h5'
 
 
 def DenseNet169_do(net_type, include_top=True, do_p=0.3, weights='imagenet',
@@ -201,32 +201,48 @@ def DenseNet169_do(net_type, include_top=True, do_p=0.3, weights='imagenet',
             print(f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels for xception backbone')
             donor_model.load_weights(weights_path)
 
-            j = 1 # ignore input layers
-            for i, l in enumerate(model.layers[1:]):
-                if j >= len(donor_model.layers):
+            donor_model_weight_layers = [d_l for d_l in donor_model.layers if len(d_l.weights) > 0]
+            j = 0
+            already_copied_layers = []
+            for i, l in enumerate([l for l in model.layers if len(l.weights) > 0]):
+                if j >= len(donor_model_weight_layers):
                     break
-                d_l = donor_model.layers[j]
-                #if l.name != d_l.name: # incorrect names
-                if 'dropout' in l.name and 'dropout' not in d_l.name:
+                while j in already_copied_layers:
+                    j += 1
+                d_l = donor_model_weight_layers[j]
+                # if l.name != d_l.name: # incorrect names
+                if 'dropout' in l.name and 'dropout' not in d_l.name or \
+                        'droppath' in l.name and 'droppath' not in d_l.name:
                     continue
-                j += 1
                 if i == 0:
                     new_w = tf.tile(d_l.weights[0], (1, 1, 2, 1))[:, :, :input_shape[-1], :]
                     l.weights[0].assign(new_w)
-                else:
-                    for (w, d_w) in zip (l.weights, d_l.weights):
+                    j += 1
+                elif l.name == d_l.name:
+                    for (w, d_w) in zip(l.weights, d_l.weights):
                         w.assign(d_w)
-            assert j == len(donor_model.layers)
+                    j += 1
+                else:
+                    for k in range(j + 1, len(donor_model_weight_layers)):
+                        d_l_next = donor_model_weight_layers[k]
+                        if l.name == d_l_next.name:
+                            for (w, d_n_w) in zip(l.weights, d_l_next.weights):
+                                w.assign(d_n_w)
+                            already_copied_layers.append(k)
+                            break
+                        if k == len(donor_model_weight_layers) - 1:
+                            raise ValueError
+            assert j == len(donor_model_weight_layers)
 
             if weights != 'imagenet':
                 print(f'Loading trained "{weights}" weights')
                 f = h5py.File(weights, 'r')
                 for i, l in enumerate(model.layers):
                     l_ws = l.weights
-                    #print(len(f.keys()))
-                    #for k in f.keys():
+                    # print(len(f.keys()))
+                    # for k in f.keys():
                     #    print(k)
-                    #input()
+                    # input()
                     d_ws = [f[l.name][l_w.name] for l_w in l_ws]
                     if i == 1:
                         new_w = np.concatenate((d_ws[0].value, l.weights[0].numpy()[..., 3:, :]), axis=-2)
