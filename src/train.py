@@ -1,4 +1,5 @@
 import gc
+import os
 
 import cv2
 
@@ -24,6 +25,9 @@ from losses import make_loss, hard_dice_coef, hard_dice_coef_ch1
 
 import tensorflow.keras.backend as K
 import tensorflow as tf
+
+if args.tf_seed is not None:
+    tf.random.set_seed(args.tf_seed)
 
 
 class ModelCheckpointMGPU(ModelCheckpoint):
@@ -78,7 +82,7 @@ def main():
         print('No weights passed, training from scratch')
     else:
         #weights_path = args.weights.format(fold)
-        weights_path = args.weights
+        weights_path = os.path.join(args.models_dir, args.weights)
         print('Loading weights from {}'.format(weights_path))
         model.load_weights(weights_path, by_name=True)
     freeze_model(model, args.freeze_till_layer)
