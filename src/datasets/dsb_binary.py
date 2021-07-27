@@ -60,8 +60,34 @@ class DSB2018BinaryDataset:
             mask_template="{id}", #.png",
             label_template="{id}.tif",
             padding=32,
-            seed=self.seed
-        )
+            seed=self.seed)
+
+    def get_generator_with_paths(self,
+                      image_ids,
+                      image_paths,
+                      channels,
+                      crop_shape,
+                      resize_shape,
+                      preprocessing_function='torch',
+                      random_transformer=None,
+                      batch_size=16,
+                      shuffle=True):
+        return DSB2018BinaryDatasetIteratorWithPaths(
+            self.images_dir,
+            self.masks_dir,
+            image_ids,
+            image_paths,
+            channels,
+            crop_shape,
+            resize_shape,
+            preprocessing_function,
+            random_transformer,
+            batch_size,
+            shuffle=shuffle,
+            image_name_template="{id}", #.png",
+            mask_template="{id}", #.png",
+            padding=32,
+            seed=self.seed)
 
     def train_generator(self,
                         crop_shape=(256, 256),
@@ -78,6 +104,10 @@ class DSB2018BinaryDataset:
 
     def test_generator(self, resize_shape=(256, 256), preprocessing_function='caffe', batch_size=1):
         return self.get_generator(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None,
+                                  resize_shape, preprocessing_function, None, batch_size, False)
+
+    def test_ensemble_generator(self, resize_shape=(256, 256), preprocessing_function='caffe', batch_size=1):
+        return self.get_generator_with_paths(self.train_ids + self.val_ids, self.train_paths + self.val_paths, self.channels, None,
                                   resize_shape, preprocessing_function, None, batch_size, False)
 
     def metrics_compute_genetator(self, resize_shape=(256, 256), preprocessing_function='torch', batch_size=1):
@@ -300,3 +330,9 @@ class DSB2018BinaryDatasetIterator(BaseMaskDatasetIterator):
         msk = np.stack((msk0, msk1, msk2))
         msk = np.rollaxis(msk, 0, 3)
         return msk
+
+
+class DSB2018BinaryDatasetIteratorWithPaths(DSB2018BinaryDatasetIterator):
+    def _get_batches_of_transformed_samples(self, index_array):
+        return super()._get_batches_of_transformed_samples(index_array),\
+               [self.image_paths[image_index]+f'[{self.image_ids[image_index]}]' for batch_index, image_index in enumerate(index_array)]
