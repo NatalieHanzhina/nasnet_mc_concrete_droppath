@@ -1,3 +1,5 @@
+import datetime
+import os
 import subprocess
 import time
 
@@ -57,12 +59,25 @@ def count_free_gpu_memory():
 
 
 def main():
-    network_args = {'network': args.network,
-                    'input_shape': (None, None, args.channels),
+    network_args = {'channels': args.channels,
+                    'num_workers': args.num_workers,
+                    'network': args.network,
+                    'alias': args.alias,
+                    'resize_size': args.resize_size,
+                    'freeze_till_layer': args.freeze_till_layer,
+                    'loss_function': args.loss_function,
+                    'optimizer': args.optimizer,
+                    'learning_rate': args.learning_rate,
+                    'decay': args.decay,
+                    'batch_size': args.batch_size,
+                    'steps_per_epoch': args.steps_per_epoch,
+                    'epochs': args.epochs,
                     'pretrained_weights': args.pretrained_weights,
-                    'do_p': args.dropout_rate,
-                    'resize_size': (args.resize_size, args.resize_size),
-                    'total_training_steps': args.epochs * args.steps_per_epoch}
+                    'dropout_rate': args.dropout_rate,
+                    'images_dir': args.images_dir,
+                    'masks_dir': args.masks_dir,
+                    'log_dir': args.log_dir,
+                    'models_dir': args.models_dir}  #TODO: REFACTOR!!!
 
     # def make_ensemble(ensemble_type, network_args, **kwargs):
     if args.ensemble_type == 'cross_validation':
@@ -81,11 +96,14 @@ def main():
     while waiting_for_start_count > 0:
         gpus_free_mem = count_free_gpu_memory()
         for gpu_id, gpu_free_mem in enumerate(gpus_free_mem):
-            if gpu_free_mem > 8*2**10:
+            if gpu_free_mem > 8*2**10 and waiting_for_start_count > 0:
                 command = get_new_bash_instruction(network_args, args.models_count - waiting_for_start_count)
                 command = f'CUDA_VISIBLE_DEVICES={gpu_id} ' + command
                 print(f'Running: {command}')
-                cur_process = subprocess.Popen(command, shell=True, stdout=f'{args.ensemble_type}_{args.network}_ensemble_bash_log.txt')
+                stdout_file_name = os.path.join('logs', args.log_dir, f'{args.ensemble_type}_{args.network}_{args.models_count - waiting_for_start_count}_ensemble_bash_log.txt')
+                os.makedirs(os.path.join('logs', args.log_dir), exist_ok=True)
+                with open(stdout_file_name, 'w+') as f_out:
+                    cur_process = subprocess.Popen(command, shell=True, stdout=f_out, stderr=f_out)
 
                 waiting_for_start_count -= 1
                 running_processes.append(cur_process)
@@ -93,13 +111,22 @@ def main():
         for p_i, running_process in enumerate(running_processes):
             if running_process.poll() is not None:
                 finished_processes.append(running_processes.pop(p_i))
-        print(f'Awaiting processes: {waiting_for_start_count}\n'
-              f'Running processes: {len(running_processes)}\n'
-              f'Finised processes: {len(finished_processes)}')
-        time.sleep(60)
+        print(f'Awaiting processes: {waiting_for_start_count}\t'
+              f'Running processes: {len(running_processes)}\t'
+              f'Finised processes: {len(finished_processes)}', end='')
+        time.sleep(240)
 
     nvidia_smi.nvmlShutdown()
 
+    while len(running_processes) > 0:
+        print(f'Awaiting processes: {waiting_for_start_count}\t'
+              f'Running processes: {len(running_processes)}\t'
+              f'Finised processes: {len(finished_processes)}\t'
+              f'{datetime.datetime}', end='')
+        for p_i, proc in enumerate(running_processes):
+            if proc.poll() is not None:
+                finished_processes.append(running_processes.pop(p_i))
+        time.sleep(60)
 
     # del model
     # K.clear_session()
@@ -111,7 +138,7 @@ def run_cross_valid_ensemble(network_args, network_counter):
 
 
 def run_random_init_ensemble(network_args, network_counter):
-    command = 'python train.py '.join([f'--{k} {v} ' for k, v in network_args.items()])
+    command = ' '.join(['python train.py'] + [f'--{k} {v} ' for k, v in network_args.items()])
     return command
 
 
