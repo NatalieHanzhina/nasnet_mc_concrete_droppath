@@ -51,11 +51,11 @@ def main():
 
     os.makedirs(args.out_root_dir, exist_ok=True)
     weights = [os.path.join(args.models_dir, m) for m in args.models]
-    models = []
     procs_out = []
     procs_err = []
     patt = re.compile('saved_to_file>>>>>(.+)<<<<<')
     procs = []
+    print(f'Using dropout rate {args.dropout_rate}')
     if retest:
         print('Running models')
         nvidia_smi.nvmlInit()
@@ -64,7 +64,6 @@ def main():
             while gpus_free_mem[0] < 8.3*2**10:
                 time.sleep(100)
                 gpus_free_mem = count_free_gpu_memory()
-
             print("Running model {} from weights {} ".format(args.network, w))
             command = ' '.join(['python predict_test_in_ensemble.py'] + [f'--{k} {v} ' for k, v in network_args.items()])
             command += f' --models {w}'
@@ -118,14 +117,11 @@ def main():
         new_samp_paths = new_samp_paths.reshape((1, new_samp_paths.shape[0]))
         samples_paths = new_samp_paths if samples_paths is None else np.concatenate((samples_paths, new_samp_paths), axis=0)
         print('New_samp shape: ---- ', new_samp_paths.shape)
-    #models_predicts = np.asarray(models_predicts)
-    #samples_paths = np.asarray(samples_paths)
     print(models_predicts.shape)
     print(samples_paths.shape)
 
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
     data_generator = dataset.test_ensemble_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
-
 
     data_gen_len = data_generator.__len__()
     ys = []
@@ -137,7 +133,6 @@ def main():
         if j >= data_gen_len:
             break
     #print(len(ys))
-    #print('Evaluating metrics')
 
     # counter = -1
     # data_gen_len = data_generator.__len__()
@@ -308,4 +303,3 @@ def load_model_weights(w):
 
 if __name__ == '__main__':
     main()
-
