@@ -109,8 +109,8 @@ def main():
         m = 20
         accs, probs = zip(*metrics['expected_calibration_error'])
         accs, probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(probs), axis=0)
-        ece1_value = compute_ece1(accs, probs, m)
-        ece2_value = compute_ece2(accs, probs, m)
+        ece1_value = compute_img_wise_ece(accs, probs, m)
+        correct_ece_value = compute_correct_ece(accs, probs, m)
         #tf.print(tf.convert_to_tensor(eces).shape)
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
@@ -127,8 +127,8 @@ def main():
               f'hard_dice_coef_combined: {hdcc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
+              f'correct_exp_calibration_error: {correct_ece_value:.4f}',
               f'exp_calibration_error1: {ece1_value:.4f}',
-              f'exp_calibration_error2: {ece2_value:.4f}',
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
@@ -136,31 +136,7 @@ def main():
     exit(0)
 
 
-def compute_ece1(accs, probs, bins):
-    pixel_wise_eces = []
-    accs = np.transpose(accs, axes=(1, 2, 0))
-    probs = np.transpose(probs, axes=(1, 2, 0))
-    probs_mins = np.min(probs, axis=2)
-    h_w_wise_bins_len = (np.max(probs, axis=2)-probs_mins) / bins
-    for j in range(bins):
-        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        if j == 0:
-            include_flags = np.logical_and(probs >= probs_mins[..., np.newaxis]+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        else:
-            include_flags = np.logical_and(probs > probs_mins[..., np.newaxis] + (h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        if np.sum(include_flags) == 0:
-            continue
-        masked_accs = np.ma.masked_where(include_flags, accs)
-        masked_probs = np.ma.masked_where(include_flags, probs)
-        mean_accuracy = masked_accs.mean(axis=-1)
-        mean_confidence = masked_probs.mean(axis=-1)
-        pixel_wise_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(pixel_wise_ece)
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    return pixel_wise_ece.mean()
-
-
-def compute_ece2(accs, probs, bins):
+def compute_correct_ece(accs, probs, bins):
     pixel_wise_eces = []
     accs = accs.flatten()
     probs = probs.flatten()
@@ -180,6 +156,30 @@ def compute_ece2(accs, probs, bins):
         mean_confidence = included_probs.mean()
         bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
         pixel_wise_eces.append(bin_ece)
+    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
+    return pixel_wise_ece.mean()
+
+
+def compute_img_wise_ece(accs, probs, bins):
+    pixel_wise_eces = []
+    accs = np.transpose(accs, axes=(1, 2, 0))
+    probs = np.transpose(probs, axes=(1, 2, 0))
+    probs_mins = np.min(probs, axis=2)
+    h_w_wise_bins_len = (np.max(probs, axis=2)-probs_mins) / bins
+    for j in range(bins):
+        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+        if j == 0:
+            include_flags = np.logical_and(probs >= probs_mins[..., np.newaxis]+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        else:
+            include_flags = np.logical_and(probs > probs_mins[..., np.newaxis] + (h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
+        if np.sum(include_flags) == 0:
+            continue
+        masked_accs = np.ma.masked_where(include_flags, accs)
+        masked_probs = np.ma.masked_where(include_flags, probs)
+        mean_accuracy = masked_accs.mean(axis=-1)
+        mean_confidence = masked_probs.mean(axis=-1)
+        pixel_wise_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        pixel_wise_eces.append(pixel_wise_ece)
     pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
     return pixel_wise_ece.mean()
 
