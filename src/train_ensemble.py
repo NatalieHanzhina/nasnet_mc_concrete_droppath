@@ -111,7 +111,7 @@ def main():
         for p_i, running_process in enumerate(running_processes):
             if running_process.poll() is not None:
                 finished_processes.append(running_processes.pop(p_i))
-        print(f'Awaiting processes: {waiting_for_start_count}\t'
+        print(f'\rAwaiting processes: {waiting_for_start_count}\t'
               f'Running processes: {len(running_processes)}\t'
               f'Finised processes: {len(finished_processes)}', end='')
         time.sleep(240)
@@ -119,7 +119,7 @@ def main():
     nvidia_smi.nvmlShutdown()
 
     while len(running_processes) > 0:
-        print(f'Awaiting processes: {waiting_for_start_count}\t'
+        print(f'\rAwaiting processes: {waiting_for_start_count}\t'
               f'Running processes: {len(running_processes)}\t'
               f'Finised processes: {len(finished_processes)}\t'
               f'{datetime.datetime}', end='')
