@@ -10,7 +10,7 @@ from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
-from metrics_do import actual_accuracy_and_confidence, brier_score, entropy
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, computeMI, compute_correct_ece
 from models.model_factory import make_model
 from params import args
 
@@ -78,6 +78,8 @@ def main():
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
 
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
+            mean_predicts = computeMI()
+
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
             metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
@@ -119,7 +121,6 @@ def main():
         accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0),\
                                    np.concatenate(np.asarray(pred_probs), axis=0), np.concatenate(np.asarray(y_true), axis=0),
         correct_ece_value = compute_correct_ece(accs, confds, m, pred_probs, y_true)
-        ece1_value = compute_img_wise_ece(accs, confds, m)
 
 
 
@@ -139,82 +140,12 @@ def main():
               f'hard_dice_coef_combined: {hdcc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
-              f'correct_exp_calibration_error: {correct_ece_value:.4f}',
-              f'exp_calibration_error1: {ece1_value:.4f}',
+              f'exp_calibration_error: {correct_ece_value:.4f}',
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
     exit(0)
-
-
-#def compute_correct_ece(accs, confds, n_bins, pred_probs):
-def compute_correct_ece(accs, confds, n_bins, pred_probs, y_true):
-    plot_x_pred_prob = []   
-    plot_x_conf = []   
-    plot_y = []   
-    pixel_wise_eces = []
-    accs = accs.flatten()
-    confds = confds.flatten()
-    pred_probs = pred_probs.flatten()
-    y_true = y_true.flatten()
-    probs_min = np.min(confds)
-    h_w_wise_bins_len = (np.max(confds) - probs_min) / n_bins
-    for j in range(n_bins):
-        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        print(f'\n---BORDERS of {j} bin:', probs_min + (h_w_wise_bins_len * j), probs_min + (h_w_wise_bins_len * (j + 1)))
-        if j == 0:
-            include_flags = np.logical_and(confds >= probs_min + (h_w_wise_bins_len * j), confds <= probs_min + (h_w_wise_bins_len * (j + 1)))
-        else:
-            include_flags = np.logical_and(confds > probs_min + (h_w_wise_bins_len * j), confds <= probs_min + (h_w_wise_bins_len * (j + 1)))
-        if np.sum(include_flags) == 0:
-            continue
-        included_accs = accs[include_flags]
-        included_probs = confds[include_flags]
-        print(np.unique(included_accs, return_counts=True))
-        #print(np.unique(np.round(np.asarray(pred_probs[include_flags])) == np.asarray(y_true[include_flags]), return_counts=True))
-        #print(np.unique(np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags]))<=0.25, return_counts=True))
-        a = (np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags])))
-        print(np.min(a), np.max(a))
-        mean_accuracy = included_accs.mean()
-        #print(tf.reduce_mean(included_accs))   
-        mean_confidence = included_probs.mean()
-        bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(bin_ece)
-
-        plot_x_pred_prob.append(pred_probs[include_flags].mean())   
-        plot_x_conf.append(mean_confidence)   
-        plot_y.append(mean_accuracy)    
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    #print('\nPixel-wise eces:\n', np.asarray(pixel_wise_eces)/accs.shape[-1])
-    print('\nX pred_prob:\n', np.asarray(plot_x_pred_prob))
-    print('\nX conf:\n', np.asarray(plot_x_conf))
-    print('\nY:\n', np.asarray(plot_y))
-    return pixel_wise_ece.mean()
-
-
-def compute_img_wise_ece(accs, probs, bins):
-    pixel_wise_eces = []
-    accs = np.transpose(accs, axes=(1, 2, 0))
-    probs = np.transpose(probs, axes=(1, 2, 0))
-    probs_mins = np.min(probs, axis=2)
-    h_w_wise_bins_len = (np.max(probs, axis=2)-probs_mins) / bins
-    for j in range(bins):
-        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        if j == 0:
-            include_flags = np.logical_and(probs >= probs_mins[..., np.newaxis]+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        else:
-            include_flags = np.logical_and(probs > probs_mins[..., np.newaxis] + (h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        if np.sum(include_flags) == 0:
-            continue
-        masked_accs = np.ma.masked_where(include_flags, accs)
-        masked_probs = np.ma.masked_where(include_flags, probs)
-        mean_accuracy = masked_accs.mean(axis=-1)
-        mean_confidence = masked_probs.mean(axis=-1)
-        pixel_wise_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(pixel_wise_ece)
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    return pixel_wise_ece.mean()
 
 
 def load_model_weights(w):
