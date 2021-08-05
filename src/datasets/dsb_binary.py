@@ -89,34 +89,6 @@ class DSB2018BinaryDataset:
             padding=32,
             seed=self.seed)
 
-    def get_generator_with_paths(self,
-                      image_ids,
-                      image_paths,
-                      channels,
-                      crop_shape,
-                      resize_shape,
-                      preprocessing_function='torch',
-                      random_transformer=None,
-                      batch_size=16,
-                      shuffle=True):
-        return DSB2018BinaryDatasetIteratorWithPaths(
-            self.images_dir,
-            self.masks_dir,
-            image_ids,
-            image_paths,
-            channels,
-            crop_shape,
-            resize_shape,
-            preprocessing_function,
-            random_transformer,
-            batch_size,
-            shuffle=shuffle,
-            image_name_template="{id}", #.png",
-            mask_template="{id}", #.png",
-            label_template="{id}.tif",
-            padding=32,
-            seed=self.seed
-        )
 
     def train_generator(self,
                         crop_shape=(256, 256),
