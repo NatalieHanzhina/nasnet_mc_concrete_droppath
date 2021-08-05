@@ -107,10 +107,22 @@ def main():
             Mean()(metrics['brier_score'])
 
         m = 20
-        accs, probs = zip(*metrics['expected_calibration_error'])
-        accs, probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(probs), axis=0)
-        ece1_value = compute_img_wise_ece(accs, probs, m)
-        correct_ece_value = compute_correct_ece(accs, probs, m)
+        #accs, confds, pred_probs = zip(*metrics['expected_calibration_error'])
+        #accs, confds, pred_probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0), np.concatenate(np.asarray(pred_probs), axis=0)
+        #print(accs.shape, confds.shape, pred_probs.shape)
+        #print('\n',tf.reduce_mean(confds))
+        #ece1_value = compute_img_wise_ece(accs, confds, m)
+        #correct_ece_value = compute_correct_ece(accs, confds, m, pred_probs)
+
+
+        accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
+        accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0),\
+                                   np.concatenate(np.asarray(pred_probs), axis=0), np.concatenate(np.asarray(y_true), axis=0),
+        correct_ece_value = compute_correct_ece(accs, confds, m, pred_probs, y_true)
+        ece1_value = compute_img_wise_ece(accs, confds, m)
+
+
+
         #tf.print(tf.convert_to_tensor(eces).shape)
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
@@ -136,27 +148,48 @@ def main():
     exit(0)
 
 
-def compute_correct_ece(accs, probs, bins):
+#def compute_correct_ece(accs, confds, n_bins, pred_probs):
+def compute_correct_ece(accs, confds, n_bins, pred_probs, y_true):
+    plot_x_pred_prob = []   
+    plot_x_conf = []   
+    plot_y = []   
     pixel_wise_eces = []
     accs = accs.flatten()
-    probs = probs.flatten()
-    probs_min = np.min(probs)
-    h_w_wise_bins_len = (np.max(probs)-probs_min) / bins
-    for j in range(bins):
+    confds = confds.flatten()
+    pred_probs = pred_probs.flatten()
+    y_true = y_true.flatten()
+    probs_min = np.min(confds)
+    h_w_wise_bins_len = (np.max(confds) - probs_min) / n_bins
+    for j in range(n_bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
+        print(f'\n---BORDERS of {j} bin:', probs_min + (h_w_wise_bins_len * j), probs_min + (h_w_wise_bins_len * (j + 1)))
         if j == 0:
-            include_flags = np.logical_and(probs >= probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
+            include_flags = np.logical_and(confds >= probs_min + (h_w_wise_bins_len * j), confds <= probs_min + (h_w_wise_bins_len * (j + 1)))
         else:
-            include_flags = np.logical_and(probs > probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
+            include_flags = np.logical_and(confds > probs_min + (h_w_wise_bins_len * j), confds <= probs_min + (h_w_wise_bins_len * (j + 1)))
         if np.sum(include_flags) == 0:
             continue
         included_accs = accs[include_flags]
-        included_probs = probs[include_flags]
+        included_probs = confds[include_flags]
+        print(np.unique(included_accs, return_counts=True))
+        #print(np.unique(np.round(np.asarray(pred_probs[include_flags])) == np.asarray(y_true[include_flags]), return_counts=True))
+        #print(np.unique(np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags]))<=0.25, return_counts=True))
+        a = (np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags])))
+        print(np.min(a), np.max(a))
         mean_accuracy = included_accs.mean()
+        #print(tf.reduce_mean(included_accs))   
         mean_confidence = included_probs.mean()
         bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
         pixel_wise_eces.append(bin_ece)
+
+        plot_x_pred_prob.append(pred_probs[include_flags].mean())   
+        plot_x_conf.append(mean_confidence)   
+        plot_y.append(mean_accuracy)    
     pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
+    #print('\nPixel-wise eces:\n', np.asarray(pixel_wise_eces)/accs.shape[-1])
+    print('\nX pred_prob:\n', np.asarray(plot_x_pred_prob))
+    print('\nX conf:\n', np.asarray(plot_x_conf))
+    print('\nY:\n', np.asarray(plot_y))
     return pixel_wise_ece.mean()
 
 

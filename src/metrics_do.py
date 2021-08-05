@@ -11,7 +11,8 @@ def brier_score(y_true, y_pred):
 def actual_accuracy_and_confidence(y_true, y_pred):
     acc = K.cast(y_true[..., 0] == K.round(y_pred[..., 0]), dtype='float32')
     conf = tf.where(y_true[..., 0], y_pred[..., 0], 1-y_pred[..., 0])
-    return acc, conf
+    #return acc, conf
+    return acc, conf, y_pred[..., 0], y_true[..., 0]
 
 
 def entropy(y_pred):
