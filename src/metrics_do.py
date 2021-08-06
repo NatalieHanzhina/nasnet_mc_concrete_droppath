@@ -20,6 +20,21 @@ def entropy(y_pred):
     return -y_pred * tf.math.log(y_pred + 1e-10)
 
 
+def compute_TP_and_TN(y_true, y_pred, thrds=[1, 0.75, 0.5, 0.25]):
+    y_pred_rounded = np.round(y_pred)
+    conf = tf.where(y_true[..., 0], y_pred[..., 0], 1 - y_pred[..., 0])
+    TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
+    TNs = (y_true[..., 0] == 0) & (y_pred_rounded[..., 0] == 0)
+    if 1 not in thrds:
+        thrds.append(1)
+    FTPs = {}
+    FTNs = {}
+    for thrd in thrds:
+        FTPs[thrd] = np.sum(TPs & (1 - conf < thrd).numpy())
+        FTNs[thrd] = np.sum(TNs & (1 - conf < thrd).numpy())
+    return FTPs, FTNs
+
+
 #def compute_correct_ece(accs, confds, n_bins, pred_probs):
 def compute_correct_ece(accs, confds, n_bins, pred_probs, y_true):
     plot_x_pred_prob = []

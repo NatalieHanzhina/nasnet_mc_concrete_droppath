@@ -10,7 +10,8 @@ from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
-from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, computeMI, compute_correct_ece
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_correct_ece, \
+    compute_TP_and_TN
 from models.model_factory import make_model
 from params import args
 
@@ -60,7 +61,9 @@ def main():
                    'hard_dice_coef': [],
                    'hard_dice_coef_combined': [],
                    'brier_score': [],
-                   'expected_calibration_error': []
+                   'expected_calibration_error': [],
+                   'FTP': [],
+                   'FTN': []
                    }
         loop_stop = data_generator.__len__()
 
@@ -78,7 +81,7 @@ def main():
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
 
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
-            mean_predicts = computeMI()
+            #mean_predicts = computeMI()
 
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
@@ -87,13 +90,16 @@ def main():
             metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
+            FTPs, FTNs = compute_TP_and_TN(y, mean_predicts)
+            metrics['FTP'].append(FTPs)
+            metrics['FTN'].append(FTNs)
 
             mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
             #tf.print('m_e:',tf.shape(mean_entropy[-1]))
             entropy_of_mean.append(entropy(mean_predicts[..., 0]))
             #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
-            exclude_metrics = ['tf_brier_score', 'expected_calibration_error']
+            exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'FTP', 'FTN']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
             prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
 
@@ -108,21 +114,23 @@ def main():
             Mean()(metrics['hard_dice_coef_combined']), \
             Mean()(metrics['brier_score'])
 
-        m = 20
+        ece_bins = 20
         #accs, confds, pred_probs = zip(*metrics['expected_calibration_error'])
         #accs, confds, pred_probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0), np.concatenate(np.asarray(pred_probs), axis=0)
         #print(accs.shape, confds.shape, pred_probs.shape)
         #print('\n',tf.reduce_mean(confds))
-        #ece1_value = compute_img_wise_ece(accs, confds, m)
-        #correct_ece_value = compute_correct_ece(accs, confds, m, pred_probs)
+        #correct_ece_value = compute_correct_ece(accs, confds, ece_bins, pred_probs)
 
 
         accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
         accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0),\
                                    np.concatenate(np.asarray(pred_probs), axis=0), np.concatenate(np.asarray(y_true), axis=0),
-        correct_ece_value = compute_correct_ece(accs, confds, m, pred_probs, y_true)
+        correct_ece_value = compute_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
 
-
+        FTPs = {k: np.sum([metrics['FTP'][j][k] for j in range(len(metrics['FTP']))]) for k in metrics['FTP'][0].keys()}
+        ratio_of_FTPs = {k: (FTPs[1] - FTPs[k]) / FTPs[1] if FTPs[1] > 0 else 0 for k in FTPs.keys()}
+        FTNs = {k: np.sum([metrics['FTN'][j][k] for j in range(len(metrics['FTN']))]) for k in metrics['FTN'][0].keys()}
+        ratio_of_FTNs = {k: (FTNs[1] - FTNs[k]) / FTNs[1] if FTNs[1] > 0 else 0 for k in FTNs.keys()}
 
         #tf.print(tf.convert_to_tensor(eces).shape)
 
@@ -140,7 +148,9 @@ def main():
               f'hard_dice_coef_combined: {hdcc_value:.4f}')
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
-              f'exp_calibration_error: {correct_ece_value:.4f}',
+              f'\nexp_calibration_error: {correct_ece_value:.4f}',
+              f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
+              f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
