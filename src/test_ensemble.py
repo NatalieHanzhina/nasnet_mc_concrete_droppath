@@ -125,7 +125,7 @@ def main():
     data_gen_len = data_generator.__len__()
     ys = []
     for j, ((x, y), samp_path) in enumerate(data_generator):
-        ys.append(y)
+        ys.append(y[0])
         #print(samples_paths.shape)
         #print(samp_path, samples_paths[:, j])
         assert all(samp_path == samples_paths[:, j])
@@ -134,6 +134,7 @@ def main():
     #print(len(ys))
 
     # counter = -1
+    # loop_stop = 20
     # data_gen_len = data_generator.__len__()
     entropy_of_mean = []
     mean_entropy = []
