@@ -62,6 +62,7 @@ def main():
                    'hard_dice_coef_combined': [],
                    'brier_score': [],
                    'expected_calibration_error': [],
+                   'maximum_calibration_error': [],
                    'thresholded hard_dice': [],
                    'FTP': [],
                    'FTN': [],
@@ -158,7 +159,6 @@ def main():
                 FTNs_another_appr[thrd] = 0
             else:
                 FTNs_another_appr[thrd] = (TN1 - np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 1], 0))) / TN1
-
 
 
         #tf.print(tf.convert_to_tensor(eces).shape)
