@@ -84,6 +84,9 @@ def main():
 
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
             #mean_predicts = computeMI()
+            mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
+            entropy_of_mean = entropy(mean_predicts)
+            mutual_info = mean_entropy - entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
 
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
@@ -92,8 +95,8 @@ def main():
             metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
-            FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts)
-            metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts))
+            FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts, mutual_info)
+            metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts, mutual_info))
             metrics['FTP'].append(FTPs)
             metrics['FTN'].append(FTNs)
 
