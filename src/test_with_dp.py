@@ -85,7 +85,6 @@ def main():
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
 
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
-            #mean_predicts = computeMI()
             batch_mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
             batch_entropy_of_mean = entropy(mean_predicts)
             mutual_info = batch_mean_entropy - batch_entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
