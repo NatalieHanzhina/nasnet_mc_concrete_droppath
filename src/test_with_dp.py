@@ -62,7 +62,6 @@ def main():
                    'hard_dice_coef_combined': [],
                    'brier_score': [],
                    'expected_calibration_error': [],
-                   'maximum_calibration_error': [],
                    'thresholded hard_dice': [],
                    'FTP': [],
                    'FTN': [],
@@ -96,7 +95,7 @@ def main():
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
-            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts))
+            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts, mutual_info))
             FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts, mutual_info)
             metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts, mutual_info))
             metrics['FTP'].append(FTPs)
@@ -132,8 +131,10 @@ def main():
 
 
         accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
-        accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0),\
-                                   np.concatenate(np.asarray(pred_probs), axis=0), np.concatenate(np.asarray(y_true), axis=0),
+        accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), \
+                                           np.concatenate(np.asarray(confds), axis=0), \
+                                           np.concatenate(np.asarray(pred_probs), axis=0), \
+                                           np.concatenate(np.asarray(y_true), axis=0)
         mce_value, correct_ece_value = compute_mce_and_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
 
         F_dice = {k: np.mean([metrics['thresholded hard_dice'][j][k] for j in range(len(metrics['thresholded hard_dice']))]) for k in metrics['thresholded hard_dice'][0].keys()}
@@ -146,11 +147,18 @@ def main():
         tp_tn_unc = np.asarray(metrics['TP, TN, unc'])
         FTPs_another_appr = {}
         FTNs_another_appr = {}
-        TP1 = np.sum(tp_tn_unc[0])
-        TN1 = np.sum(tp_tn_unc[1])
+        TP1 = np.sum(tp_tn_unc[:, 0])
+        TN1 = np.sum(tp_tn_unc[:, 1])
         for thrd in sorted(thrds):
-            FTPs_another_appr[thrd] = (TP1 - np.sum(tp_tn_unc[0]&tp_tn_unc[2] < thrd)) / TP1
-            FTNs_another_appr[thrd] = (TN1 - np.sum(tp_tn_unc[1]&tp_tn_unc[2] < thrd)) / TN1
+            if TP1 == 0:
+                FTPs_another_appr[thrd] = 0
+            else:
+                FTPs_another_appr[thrd] = (TP1 - np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 0], 0))) / TP1
+            if TN1 == 0:
+                FTNs_another_appr[thrd] = 0
+            else:
+                FTNs_another_appr[thrd] = (TN1 - np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 1], 0))) / TN1
+
 
 
         #tf.print(tf.convert_to_tensor(eces).shape)
@@ -174,7 +182,7 @@ def main():
               f'\nDices: '+'\t'.join([f'{k}: {v:.4f}' for k, v in F_dice.items()]),
               f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
               f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
-              '____________________________________'
+              '\n____________________________________'
               f'\nnew formula ratios of FTPs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTPs_another_appr.items()]),
               f'\nnew formula ratios of FTNs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTNs_another_appr.items()]),
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
