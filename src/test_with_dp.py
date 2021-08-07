@@ -11,7 +11,7 @@ from tensorflow.keras.optimizers import RMSprop
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
 from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_mce_and_correct_ece, \
-    compute_FTP_and_FTN, compute_filtered_hard_dice
+    compute_FTP_and_FTN, compute_filtered_hard_dice, compute_TP_and_TN
 from models.model_factory import make_model
 from params import args
 
@@ -65,7 +65,8 @@ def main():
                    'maximum_calibration_error': [],
                    'thresholded hard_dice': [],
                    'FTP': [],
-                   'FTN': []
+                   'FTN': [],
+                   'TP, TN, unc': []
                    }
         loop_stop = data_generator.__len__()
 
@@ -74,6 +75,7 @@ def main():
         entropy_of_mean = []
         mean_entropy = []
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
+        thrds = (1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)
         for x, y in data_generator:
             counter += 1
             if counter >= loop_stop:
@@ -84,9 +86,9 @@ def main():
 
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
             #mean_predicts = computeMI()
-            mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
-            entropy_of_mean = entropy(mean_predicts)
-            mutual_info = mean_entropy - entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
+            batch_mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
+            batch_entropy_of_mean = entropy(mean_predicts)
+            mutual_info = batch_mean_entropy - batch_entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
 
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
@@ -99,13 +101,14 @@ def main():
             metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts, mutual_info))
             metrics['FTP'].append(FTPs)
             metrics['FTN'].append(FTNs)
+            metrics['TP, TN, unc'].append([*compute_TP_and_TN(y, mean_predicts), mutual_info[..., 0]])
 
             mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
             #tf.print('m_e:',tf.shape(mean_entropy[-1]))
             entropy_of_mean.append(entropy(mean_predicts[..., 0]))
             #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
-            exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error', 'thresholded hard_dice', 'FTP', 'FTN']
+            exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error', 'thresholded hard_dice', 'FTP', 'FTN', 'TP, TN, unc']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
             prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
 
@@ -140,6 +143,16 @@ def main():
         FTNs = {k: np.sum([metrics['FTN'][j][k] for j in range(len(metrics['FTN']))]) for k in metrics['FTN'][0].keys()}
         ratio_of_FTNs = {k: (FTNs[1] - FTNs[k]) / FTNs[1] if FTNs[1] > 0 else 0 for k in FTNs.keys()}
 
+        tp_tn_unc = np.asarray(metrics['TP, TN, unc'])
+        FTPs_another_appr = {}
+        FTNs_another_appr = {}
+        TP1 = np.sum(tp_tn_unc[0])
+        TN1 = np.sum(tp_tn_unc[1])
+        for thrd in sorted(thrds):
+            FTPs_another_appr[thrd] = (TP1 - np.sum(tp_tn_unc[0]&tp_tn_unc[2] < thrd)) / TP1
+            FTNs_another_appr[thrd] = (TN1 - np.sum(tp_tn_unc[1]&tp_tn_unc[2] < thrd)) / TN1
+
+
         #tf.print(tf.convert_to_tensor(eces).shape)
 
         #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
@@ -161,6 +174,9 @@ def main():
               f'\nDices: '+'\t'.join([f'{k}: {v:.4f}' for k, v in F_dice.items()]),
               f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
               f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
+              '____________________________________'
+              f'\nnew formula ratios of FTPs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTPs_another_appr.items()]),
+              f'\nnew formula ratios of FTNs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTNs_another_appr.items()]),
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0

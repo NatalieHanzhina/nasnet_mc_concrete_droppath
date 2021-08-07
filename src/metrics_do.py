@@ -20,6 +20,13 @@ def entropy(y_pred):
     return -y_pred * tf.math.log(y_pred + 1e-10)
 
 
+def compute_TP_and_TN(y_true, y_pred):
+    y_pred_rounded = np.round(y_pred)
+    TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
+    TNs = (y_true[..., 0] == 0) & (y_pred_rounded[..., 0] == 0)
+    return TPs, TNs
+
+
 def compute_FTP_and_FTN(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)):
     y_pred_rounded = np.round(y_pred)
     TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
@@ -28,13 +35,13 @@ def compute_FTP_and_FTN(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75, 0.6, 0
         thrds.append(1)
     FTPs = {}
     FTNs = {}
-    for thrd in thrds:
-        #if thrd == 1:
-        #    FTPs[thrd] = np.sum(TPs)
-        #    FTNs[thrd] = np.sum(TNs)
-        #else:
-        FTPs[thrd] = np.sum(TPs & (uncertainty[..., 0] < thrd).numpy())
-        FTNs[thrd] = np.sum(TNs & (uncertainty[..., 0] < thrd).numpy())
+    for thrd in sorted(thrds):
+        if thrd == 1:
+            FTPs[thrd] = np.sum(TPs)
+            FTNs[thrd] = np.sum(TNs)
+        else:
+            FTPs[thrd] = np.sum(TPs & (uncertainty[..., 0] < thrd).numpy())
+            FTNs[thrd] = np.sum(TNs & (uncertainty[..., 0] < thrd).numpy())
     return FTPs, FTNs
 
 
@@ -43,7 +50,7 @@ def compute_filtered_hard_dice(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75,
     y_pred_f = K.flatten(K.round(y_pred[..., 0]))
     uncertainty_f = K.flatten(uncertainty[..., 0])
     filtered_hard_dices = {}
-    for thrd in thrds:
+    for thrd in sorted(thrds):
         if thrd == 1:
             filtered_y_true_f = y_true_f
             filtered_y_pred_f = y_pred_f
