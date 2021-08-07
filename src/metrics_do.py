@@ -30,6 +30,10 @@ def compute_FTP_and_FTN(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25
     FTPs = {}
     FTNs = {}
     for thrd in thrds:
+        #if thrd == 1:
+        #    FTPs[thrd] = np.sum(TPs)
+        #    FTNs[thrd] = np.sum(TNs)
+        #else:
         FTPs[thrd] = np.sum(TPs & (1 - conf < thrd).numpy())
         FTNs[thrd] = np.sum(TNs & (1 - conf < thrd).numpy())
     return FTPs, FTNs
@@ -42,8 +46,13 @@ def compute_filtered_hard_dice(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.
     y_pred_f = K.flatten(K.round(y_pred[..., 0]))
     filtered_hard_dices = {}
     for thrd in thrds:
-        filtered_y_true_f = tf.where(conf_f > thrd, y_true_f, 0)
-        filtered_y_pred_f = tf.where(conf_f > thrd, y_pred_f, 0)
+
+        #if thrd == 1:
+        #    filtered_y_true_f = y_true_f
+        #    filtered_y_pred_f = y_pred_f
+        #else:
+        filtered_y_true_f = tf.where(1 - conf_f < thrd, y_true_f, 0)
+        filtered_y_pred_f = tf.where(1 - conf_f < thrd, y_pred_f, 0)
         intersection = K.sum(filtered_y_true_f * filtered_y_pred_f)
         filtered_hard_dices[thrd] = 100. * (2. * intersection + smooth) / (K.sum(filtered_y_true_f) + K.sum(filtered_y_pred_f) + smooth)
     return filtered_hard_dices
