@@ -20,7 +20,7 @@ def entropy(y_pred):
     return -y_pred * tf.math.log(y_pred + 1e-10)
 
 
-def compute_TP_and_TN(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)):
+def compute_FTP_and_FTN(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)):
     y_pred_rounded = np.round(y_pred)
     conf = tf.where(y_true[..., 0], y_pred[..., 0], 1 - y_pred[..., 0])
     TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
@@ -33,6 +33,20 @@ def compute_TP_and_TN(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 
         FTPs[thrd] = np.sum(TPs & (1 - conf < thrd).numpy())
         FTNs[thrd] = np.sum(TNs & (1 - conf < thrd).numpy())
     return FTPs, FTNs
+
+
+def compute_filtered_hard_dice(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0), smooth=1e-3):
+    conf = tf.where(y_true[..., 0], y_pred[..., 0], 1 - y_pred[..., 0])
+    conf_f = K.flatten(conf)
+    y_true_f = K.flatten(K.round(y_true[..., 0]))
+    y_pred_f = K.flatten(K.round(y_pred[..., 0]))
+    filtered_hard_dices = {}
+    for thrd in thrds:
+        filtered_y_true_f = tf.where(conf_f > thrd, y_true_f, 0)
+        filtered_y_pred_f = tf.where(conf_f > thrd, y_pred_f, 0)
+        intersection = K.sum(filtered_y_true_f * filtered_y_pred_f)
+        filtered_hard_dices[thrd] = 100. * (2. * intersection + smooth) / (K.sum(filtered_y_true_f) + K.sum(filtered_y_pred_f) + smooth)
+    return filtered_hard_dices
 
 
 #def compute_correct_ece(accs, confds, n_bins, pred_probs):
