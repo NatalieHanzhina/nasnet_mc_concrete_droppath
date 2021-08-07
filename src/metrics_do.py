@@ -50,7 +50,7 @@ def compute_mce_and_correct_ece(accs, confds, n_bins, pred_probs, y_true):
     h_w_wise_bins_len = (np.max(confds) - probs_min) / n_bins
     for j in range(n_bins):
         # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        print(f'\n---BORDERS of {j} bin:', probs_min + (h_w_wise_bins_len * j), probs_min + (h_w_wise_bins_len * (j + 1)))
+        #print(f'\n---BORDERS of {j} bin:', probs_min + (h_w_wise_bins_len * j), probs_min + (h_w_wise_bins_len * (j + 1)))
         if j == 0:
             include_flags = np.logical_and(confds >= probs_min + (h_w_wise_bins_len * j), confds <= probs_min + (h_w_wise_bins_len * (j + 1)))
         else:
@@ -59,7 +59,7 @@ def compute_mce_and_correct_ece(accs, confds, n_bins, pred_probs, y_true):
             continue
         included_accs = accs[include_flags]
         included_probs = confds[include_flags]
-        print(np.unique(included_accs, return_counts=True))
+        #print(np.unique(included_accs, return_counts=True))
         #print(np.unique(np.round(np.asarray(pred_probs[include_flags])) == np.asarray(y_true[include_flags]), return_counts=True))
         #print(np.unique(np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags]))<=0.25, return_counts=True))
         a = (np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags])))
