@@ -146,11 +146,17 @@ def main():
         tp_tn_unc = np.asarray(metrics['TP, TN, unc'])
         FTPs_another_appr = {}
         FTNs_another_appr = {}
-        TP1 = np.sum(tp_tn_unc[0])
-        TN1 = np.sum(tp_tn_unc[1])
+        TP1 = np.sum(tp_tn_unc[:, 0])
+        TN1 = np.sum(tp_tn_unc[:, 1])
         for thrd in sorted(thrds):
-            FTPs_another_appr[thrd] = (TP1 - np.sum(tp_tn_unc[0]&tp_tn_unc[2] < thrd)) / TP1
-            FTNs_another_appr[thrd] = (TN1 - np.sum(tp_tn_unc[1]&tp_tn_unc[2] < thrd)) / TN1
+            if TP1 == 0:
+                FTPs_another_appr[thrd] = 0
+            else:
+                FTPs_another_appr[thrd] = (TP1 - np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 0], 0))) / TP1
+            if TN1 == 0:
+                FTNs_another_appr[thrd] = 0
+            else:
+                FTNs_another_appr[thrd] = (TN1 - np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 1], 0))) / TN1
 
 
         #tf.print(tf.convert_to_tensor(eces).shape)
@@ -174,7 +180,7 @@ def main():
               f'\nDices: '+'\t'.join([f'{k}: {v:.4f}' for k, v in F_dice.items()]),
               f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
               f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
-              '____________________________________'
+              '\n____________________________________'
               f'\nnew formula ratios of FTPs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTPs_another_appr.items()]),
               f'\nnew formula ratios of FTNs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in FTNs_another_appr.items()]),
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
