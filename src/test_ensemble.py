@@ -162,7 +162,7 @@ def main():
         #print('mean_ensemble_pred shape', mean_ens_predict.shape)
         #return
 
-        batch_mean_entropy = tf.reduce_mean(entropy(ensemble_predict), axis=1)
+        batch_mean_entropy = tf.reduce_mean(entropy(ensemble_predict), axis=0)
         batch_entropy_of_mean = entropy(mean_ens_predict)
         mutual_info = batch_mean_entropy - batch_entropy_of_mean  # mutual-info describes uncertainty of the model about its predictions
 
@@ -174,7 +174,7 @@ def main():
         metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_ens_predict).numpy())
         metrics['brier_score'].append(brier_score(y, mean_ens_predict).numpy())
         metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_ens_predict, mutual_info))
-        metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_ens_predict, mutual_info[..., 0]))
+        metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_ens_predict, mutual_info))
 
         mean_entropy.append(tf.reduce_mean(entropy(ensemble_predict[..., 0]), axis=0))
         #tf.print('m_e:',tf.shape(mean_entropy[-1]))
