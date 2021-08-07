@@ -1,22 +1,21 @@
 #import gc
+import os
+import random
 import re
+import subprocess
 import time
+import timeit
+from subprocess import PIPE
 
 import numpy as np
 import nvidia_smi
-import os
-import random
-import subprocess
-import timeit
-from subprocess import PIPE
 import tensorflow as tf
-
 from tensorflow.keras.metrics import Mean
-from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
-from metrics_do import actual_accuracy_and_confidence, brier_score, entropy
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_filtered_hard_dice, \
+    compute_mce_and_correct_ece
 from models.model_factory import make_model
 from params import args
 
@@ -144,8 +143,9 @@ def main():
                'hard_dice_coef': [],
                'hard_dice_coef_combined': [],
                'brier_score': [],
-               'expected_calibration_error': []
-               }
+               'expected_calibration_error': [],
+               'thresholded hard_dice': [],
+    }
     print('Computing metrics')
     for i in range(models_predicts.shape[1]):
         # counter += 1
@@ -162,6 +162,10 @@ def main():
         #print('mean_ensemble_pred shape', mean_ens_predict.shape)
         #return
 
+        batch_mean_entropy = tf.reduce_mean(entropy(ensemble_predict), axis=1)
+        batch_entropy_of_mean = entropy(mean_ens_predict)
+        mutual_info = batch_mean_entropy - batch_entropy_of_mean  # mutual-info describes uncertainty of the model about its predictions
+
         # mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
         metrics[args.loss_function].append(loss(y, mean_ens_predict).numpy())
         metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_ens_predict).numpy())
@@ -169,7 +173,8 @@ def main():
         metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_ens_predict).numpy())
         metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_ens_predict).numpy())
         metrics['brier_score'].append(brier_score(y, mean_ens_predict).numpy())
-        metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_ens_predict))
+        metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_ens_predict, mutual_info))
+        metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_ens_predict, mutual_info[..., 0]))
 
         mean_entropy.append(tf.reduce_mean(entropy(ensemble_predict[..., 0]), axis=0))
         #tf.print('m_e:',tf.shape(mean_entropy[-1]))
@@ -188,12 +193,16 @@ def main():
         Mean()(metrics['hard_dice_coef_combined']), \
         Mean()(metrics['brier_score'])
 
-    m = 20
-    accs, probs = zip(*metrics['expected_calibration_error'])
-    accs, probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(probs), axis=0)
-    ece1_value = compute_ece1(accs, probs, m)
-    correct_ece_value = compute_correct_ece(accs, probs, m)
+    ece_bins = 20
+    accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
+    accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0),\
+                                       np.concatenate(np.asarray(confds), axis=0),\
+                                       np.concatenate(np.asarray(pred_probs), axis=0),\
+                                       np.concatenate(np.asarray(y_true), axis=0)
+    mce_value, correct_ece_value = compute_mce_and_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
     #tf.print(tf.convert_to_tensor(eces).shape)
+    F_dice = {k: np.mean([metrics['thresholded hard_dice'][j][k] for j in range(len(metrics['thresholded hard_dice']))])
+              for k in metrics['thresholded hard_dice'][0].keys()}
 
     #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
     mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
@@ -208,8 +217,9 @@ def main():
           f'hard_dice_coef_combined: {hdcc_value:.4f}')
     print('Monte-Calro estimation')
     print(f'brier_score: {brier_score_value:.4f}, '
-          f'correct_exp_calibration_error: {correct_ece_value:.4f}',
-          f'exp_calibration_error1: {ece1_value:.4f}',
+          f'\ncorrect_exp_calibration_error: {correct_ece_value:.4f}',
+          f'\nmax_calibration_error: {mce_value:.4f}',
+          f'\nDices: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in F_dice.items()]),
           f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
     elapsed = timeit.default_timer() - t0
@@ -229,54 +239,6 @@ def count_free_gpu_memory():
 
     #nvidia_smi.nvmlShutdown() Moved to def main
     return free_mem_MiB
-
-
-def compute_correct_ece(accs, probs, bins):
-    pixel_wise_eces = []
-    accs = accs.flatten()
-    probs = probs.flatten()
-    probs_min = np.min(probs)
-    h_w_wise_bins_len = (np.max(probs)-probs_min) / bins
-    for j in range(bins):
-        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        if j == 0:
-            include_flags = np.logical_and(probs >= probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
-        else:
-            include_flags = np.logical_and(probs > probs_min + (h_w_wise_bins_len*j), probs <= probs_min + (h_w_wise_bins_len*(j+1)))
-        if np.sum(include_flags) == 0:
-            continue
-        included_accs = accs[include_flags]
-        included_probs = probs[include_flags]
-        mean_accuracy = included_accs.mean()
-        mean_confidence = included_probs.mean()
-        bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(bin_ece)
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    return pixel_wise_ece.mean()
-
-
-def compute_ece1(accs, probs, bins):
-    pixel_wise_eces = []
-    accs = np.transpose(accs, axes=(1, 2, 0))
-    probs = np.transpose(probs, axes=(1, 2, 0))
-    probs_mins = np.min(probs, axis=2)
-    h_w_wise_bins_len = (np.max(probs, axis=2)-probs_mins) / bins
-    for j in range(bins):
-        # tf.print(tf.convert_to_tensor(accs).shape, tf.convert_to_tensor(probs).shape)
-        if j == 0:
-            include_flags = np.logical_and(probs >= probs_mins[..., np.newaxis]+(h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        else:
-            include_flags = np.logical_and(probs > probs_mins[..., np.newaxis] + (h_w_wise_bins_len*j)[..., np.newaxis], probs <= probs_mins[..., np.newaxis] + (h_w_wise_bins_len*(j+1))[..., np.newaxis])
-        if np.sum(include_flags) == 0:
-            continue
-        masked_accs = np.ma.masked_where(include_flags, accs)
-        masked_probs = np.ma.masked_where(include_flags, probs)
-        mean_accuracy = masked_accs.mean(axis=-1)
-        mean_confidence = masked_probs.mean(axis=-1)
-        pixel_wise_ece = np.ma.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(pixel_wise_ece)
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    return pixel_wise_ece.mean()
 
 
 def load_model_weights(w):
