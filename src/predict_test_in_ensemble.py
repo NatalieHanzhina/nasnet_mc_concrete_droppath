@@ -20,7 +20,8 @@ random.seed(1)
 tf.random.set_seed(1)
 #test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
 test_pred = args.out_root_dir
-
+print('test predictions folder:', end=' ')
+print(test_pred)
 
 def main():
     gpus = tf.config.list_physical_devices('GPU')
@@ -65,11 +66,9 @@ def main():
             m_pred = model.predict(x)
             model_predicts = m_pred if model_predicts is None else np.concatenate((model_predicts, m_pred), axis=0)
             samples_path = sample_path if samples_path is None else np.concatenate((samples_path, sample_path), axis=0)
-            #samples_path.append(sample_path)
             prog_bar.update(s_i+1)
             if s_i >= data_gen_len:
-            # if s_i >= 10:
-
+                #if s_i >= 10:
                 break
         models_predicts.append(model_predicts)
         samples_paths.append(samples_path)
