@@ -10,7 +10,7 @@ from tensorflow.keras.optimizers import RMSprop
 
 from datasets.dsb_binary import DSB2018BinaryDataset
 from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
-from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_correct_ece, \
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_mce_and_correct_ece, \
     compute_TP_and_TN
 from models.model_factory import make_model
 from params import args
@@ -62,6 +62,7 @@ def main():
                    'hard_dice_coef_combined': [],
                    'brier_score': [],
                    'expected_calibration_error': [],
+                   'maximum_calibration_error': [],
                    'FTP': [],
                    'FTN': []
                    }
@@ -125,7 +126,7 @@ def main():
         accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
         accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0),\
                                    np.concatenate(np.asarray(pred_probs), axis=0), np.concatenate(np.asarray(y_true), axis=0),
-        correct_ece_value = compute_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
+        mce_value, correct_ece_value = compute_mce_and_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
 
         FTPs = {k: np.sum([metrics['FTP'][j][k] for j in range(len(metrics['FTP']))]) for k in metrics['FTP'][0].keys()}
         ratio_of_FTPs = {k: (FTPs[1] - FTPs[k]) / FTPs[1] if FTPs[1] > 0 else 0 for k in FTPs.keys()}
@@ -149,6 +150,7 @@ def main():
         print('Monte-Calro estimation')
         print(f'brier_score: {brier_score_value:.4f}, '
               f'\nexp_calibration_error: {correct_ece_value:.4f}',
+              f'\nmax_calibration_error: {mce_value:.4f}',
               f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
               f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
               f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')

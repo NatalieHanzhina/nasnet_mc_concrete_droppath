@@ -20,7 +20,7 @@ def entropy(y_pred):
     return -y_pred * tf.math.log(y_pred + 1e-10)
 
 
-def compute_TP_and_TN(y_true, y_pred, thrds=[1, 0.75, 0.5, 0.25]):
+def compute_TP_and_TN(y_true, y_pred, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)):
     y_pred_rounded = np.round(y_pred)
     conf = tf.where(y_true[..., 0], y_pred[..., 0], 1 - y_pred[..., 0])
     TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
@@ -36,11 +36,12 @@ def compute_TP_and_TN(y_true, y_pred, thrds=[1, 0.75, 0.5, 0.25]):
 
 
 #def compute_correct_ece(accs, confds, n_bins, pred_probs):
-def compute_correct_ece(accs, confds, n_bins, pred_probs, y_true):
+def compute_mce_and_correct_ece(accs, confds, n_bins, pred_probs, y_true):
     plot_x_pred_prob = []
     plot_x_conf = []
     plot_y = []
-    pixel_wise_eces = []
+    bin_eces = []
+    bin_mces = []
     accs = accs.flatten()
     confds = confds.flatten()
     pred_probs = pred_probs.flatten()
@@ -66,18 +67,19 @@ def compute_correct_ece(accs, confds, n_bins, pred_probs, y_true):
         mean_accuracy = included_accs.mean()
         #print(tf.reduce_mean(included_accs))
         mean_confidence = included_probs.mean()
-        bin_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
-        pixel_wise_eces.append(bin_ece)
+        bin_scaled_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        bin_eces.append(bin_scaled_ece)
+        bin_mces.append(np.abs(mean_accuracy-mean_confidence))
 
         plot_x_pred_prob.append(pred_probs[include_flags].mean())
         plot_x_conf.append(mean_confidence)
         plot_y.append(mean_accuracy)
-    pixel_wise_ece = np.sum(np.asarray(pixel_wise_eces), axis=0) / accs.shape[-1]
-    #print('\nPixel-wise eces:\n', np.asarray(pixel_wise_eces)/accs.shape[-1])
+    pixel_wise_ece = np.sum(np.asarray(bin_eces), axis=0) / accs.shape[-1]
+    #print('\nPixel-wise eces:\n', np.asarray(bin_eces)/accs.shape[-1])
     #print('\nX pred_prob:\n', np.asarray(plot_x_pred_prob))
     #print('\nX conf:\n', np.asarray(plot_x_conf))
     #print('\nY:\n', np.asarray(plot_y))
-    return pixel_wise_ece.mean()
+    return max(bin_mces), pixel_wise_ece.mean()
 
 
 
