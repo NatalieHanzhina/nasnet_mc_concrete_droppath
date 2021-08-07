@@ -67,6 +67,9 @@ def main():
                    'FTN': [],
                    'TP, TN, unc': []
                    }
+        exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error',
+                           'thresholded hard_dice', 'FTP', 'FTN', 'TP, TN, unc']
+
         loop_stop = data_generator.__len__()
 
         counter = -1
@@ -107,7 +110,6 @@ def main():
             entropy_of_mean.append(entropy(mean_predicts[..., 0]))
             #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
-            exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error', 'thresholded hard_dice', 'FTP', 'FTN', 'TP, TN, unc']
             # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
             prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
 

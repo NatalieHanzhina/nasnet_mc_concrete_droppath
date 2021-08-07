@@ -151,7 +151,11 @@ def main():
                'FTN': [],
                'TP, TN, unc': []
     }
+    exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error',
+                       'thresholded hard_dice', 'FTP', 'FTN', 'TP, TN, unc']
+
     print('Computing metrics')
+    prog_bar = tf.keras.utils.Progbar(models_predicts.shape[1])
     for i in range(models_predicts.shape[1]):
         # counter += 1
         # if counter >= loop_stop:
@@ -191,6 +195,7 @@ def main():
         entropy_of_mean.append(entropy(mean_ens_predict[..., 0]))
         #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
 
+        prog_bar.update(i + 1, [(k, round(v[-1], 4)) for k, v in metrics.items() if k not in exclude_metrics])
 
         #del x, y, ensemble_predict, mean_ens_predict
         #gc.collect()
@@ -220,6 +225,7 @@ def main():
     ratio_of_FTNs = {k: (FTNs[1] - FTNs[k]) / FTNs[1] if FTNs[1] > 0 else 0 for k in FTNs.keys()}
 
     tp_tn_unc = np.asarray(metrics['TP, TN, unc'])
+    print(tp_tn_unc.shape)
     TPs = {}
     TNs = {}
     for thrd in sorted(thrds):
