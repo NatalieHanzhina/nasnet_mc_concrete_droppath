@@ -62,7 +62,6 @@ def main():
                    'hard_dice_coef_combined': [],
                    'brier_score': [],
                    'expected_calibration_error': [],
-                   'maximum_calibration_error': [],
                    'thresholded hard_dice': [],
                    'FTP': [],
                    'FTN': [],
@@ -83,8 +82,8 @@ def main():
             x_repeated = np.repeat(x, predictions_repetition, axis=0)
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
             predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
-
             mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
+
             batch_mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
             batch_entropy_of_mean = entropy(mean_predicts)
             mutual_info = batch_mean_entropy - batch_entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
@@ -95,9 +94,10 @@ def main():
             metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
             metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
+
             metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts, mutual_info))
-            FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts, mutual_info)
             metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts, mutual_info))
+            FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts, mutual_info)
             metrics['FTP'].append(FTPs)
             metrics['FTN'].append(FTNs)
             metrics['TP, TN, unc'].append([*compute_TP_and_TN(y, mean_predicts), mutual_info[..., 0]])
@@ -150,7 +150,6 @@ def main():
         for thrd in sorted(thrds):
             TPs[thrd] = np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 0], 0))
             TNs[thrd] = np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 1], 0))
-
 
         #tf.print(tf.convert_to_tensor(eces).shape)
 
