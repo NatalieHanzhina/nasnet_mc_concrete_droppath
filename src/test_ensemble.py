@@ -116,8 +116,8 @@ def main():
         new_samp_paths = new_samp_paths.reshape((1, new_samp_paths.shape[0]))
         samples_paths = new_samp_paths if samples_paths is None else np.concatenate((samples_paths, new_samp_paths), axis=0)
         print('New_samp shape: ---- ', new_samp_paths.shape)
-    print(models_predicts.shape)
-    print(samples_paths.shape)
+    print('Predicts shape:', models_predicts.shape)
+    print('Samples paths shape:', samples_paths.shape)
 
     dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
     data_generator = dataset.test_ensemble_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
