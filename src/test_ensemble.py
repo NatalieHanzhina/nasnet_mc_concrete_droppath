@@ -237,7 +237,10 @@ def main():
     #mean_entropy_subtr = tf.reduce_mean(mean_entropy-entropy_of_mean)
 
     print(f'Dropout rate: {args.dropout_rate}')
-    print("\n".join(weights), 'evaluation results:')
+    if retest:
+        print("\n".join(weights), 'evaluation results:')
+    else:
+        print("\n".join(procs_out), 'evaluation results:')
     print(f'{args.loss_function}: {loss_value:.4f}, '
           f'binary_crossentropy: {bce_value:.4f}, '
           f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
