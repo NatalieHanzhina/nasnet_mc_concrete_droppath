@@ -89,7 +89,7 @@ def main():
 
             batch_mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
             batch_entropy_of_mean = entropy(mean_predicts)
-            mutual_info = batch_mean_entropy - batch_entropy_of_mean        # mutual-info describes uncertainty of the model about its predictions
+            mutual_info = tf.abs(batch_mean_entropy - batch_entropy_of_mean)        # mutual-info describes uncertainty of the model about its predictions
 
             metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
             metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())

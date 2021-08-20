@@ -173,7 +173,7 @@ def main():
 
         batch_mean_entropy = tf.reduce_mean(entropy(ensemble_predict), axis=0)
         batch_entropy_of_mean = entropy(mean_ens_predict)
-        mutual_info = batch_mean_entropy - batch_entropy_of_mean  # mutual-info describes uncertainty of the model about its predictions
+        mutual_info = tf.abs(batch_mean_entropy - batch_entropy_of_mean)  # mutual-info describes uncertainty of the model about its predictions
 
         # mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
         metrics[args.loss_function].append(loss(y, mean_ens_predict).numpy())
