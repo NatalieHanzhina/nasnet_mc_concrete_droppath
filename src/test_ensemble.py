@@ -5,6 +5,7 @@ import re
 import subprocess
 import time
 import timeit
+from datetime import datetime
 from subprocess import PIPE
 
 import numpy as np
@@ -55,38 +56,40 @@ def main():
     patt = re.compile('saved_to_file>>>>>(.+)<<<<<')
     procs = []
     print(f'Using dropout rate {args.dropout_rate}')
+    procs_counter_to_read = 0
     if retest:
         print('Running models')
         nvidia_smi.nvmlInit()
         for w in args.models:
             gpus_free_mem = count_free_gpu_memory()
             while gpus_free_mem[0] < 8.3*2**10:
-                time.sleep(100)
                 gpus_free_mem = count_free_gpu_memory()
-            print("Running model {} from weights {} ".format(args.network, w))
+                proc_out, proc_err = procs[procs_counter_to_read].communicate()
+                procs_out.append(re.findall(patt, proc_out.decode('utf-8'))[0])
+                procs_err.append(proc_err)
+                procs_counter_to_read +=1
+                time.sleep(60)
+
+            print("{} Running model {} from weights {} ".format(datetime.now(), args.network, w))
             command = ' '.join(['python predict_test_in_ensemble.py'] + [f'--{k} {v} ' for k, v in network_args.items()])
             command += f' --models {w}'
 
-            #proc = subprocess.Popen(command, shell=True, stdout=PIPE)
             proc = subprocess.Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
             procs.append(proc)
             time.sleep(180)
 
 
         for proc in procs:
+            continue                
             print('Reading process stderr **************************')
             while True:
                 next_err_line = proc.stderr.readline()
                 #next_out_line = proc.stdout.readline().decode('utf-8')
-                #file_saved_path = re.findall(patt, next_out_line)
-                #if len(file_saved_path) > 0:
-                #    procs_out.append(file_saved_path[0])
                 if proc.poll() is not None:
                     break
                 if next_err_line != '':
                     print(next_err_line.decode('utf-8'))
-                #if next_out_line != '':
-                #    print(next_out_line)
+                    #print(next_out_line)
 
             proc_out, proc_err = proc.communicate()
             print('Process output:-------------')
@@ -125,12 +128,13 @@ def main():
     data_gen_len = data_generator.__len__()
     ys = []
     for j, ((x, y), samp_path) in enumerate(data_generator):
+        if j >= data_gen_len:
+            break
         ys.append(y[0])
         #print(samples_paths.shape)
         #print(samp_path, samples_paths[:, j])
+        #print(samp_path== samples_paths[:, j])
         assert all(samp_path == samples_paths[:, j])
-        if j >= data_gen_len:
-            break
     #print(len(ys))
 
     # counter = -1
@@ -265,9 +269,9 @@ def main():
 
 def count_free_gpu_memory():
     free_mem_MiB = []
-    gpus = tf.config.experimental.list_physical_devices('GPU')
+    #gpus = tf.config.experimental.list_physical_devices('GPU')
     #nvidia_smi.nvmlInit()  Moved to def main
-    for i in range(len(gpus)):
+    for i in list(map(int, os.environ["CUDA_VISIBLE_DEVICES"].split(','))):
         handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
         info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
         free_MiB = info.free/2**20

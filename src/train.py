@@ -145,7 +145,7 @@ def main():
     print(f"Saving tb logs to {tb_log_dir_path}")
     callbacks.append(tb)
     early_stoping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=22, mode='min')
-    callbacks.append(early_stoping)
+    #callbacks.append(early_stoping)
     steps_per_epoch = len(dataset.train_ids) / args.batch_size + 1
     if args.steps_per_epoch > 0:
         steps_per_epoch = args.steps_per_epoch

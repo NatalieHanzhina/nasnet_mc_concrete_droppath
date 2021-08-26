@@ -47,7 +47,8 @@ def main():
     optimizer = RMSprop(lr=args.learning_rate)
     print('Predicting test')
 
-    data_gen_len = data_generator.__len__() # нада?
+    loop_stop = data_generator.__len__()
+    data_gen_len = data_generator.__len__()
     models_predicts = []
     samples_paths = []
     loss = make_loss(args.loss_function)
@@ -63,18 +64,19 @@ def main():
         samples_path = None
         prog_bar = tf.keras.utils.Progbar(data_gen_len)
         for s_i, ((x, y), sample_path) in enumerate(data_generator):
+            #if s_i >= 10:
+            if s_i >= loop_stop:
+                break
             m_pred = model.predict(x)
             model_predicts = m_pred if model_predicts is None else np.concatenate((model_predicts, m_pred), axis=0)
             samples_path = sample_path if samples_path is None else np.concatenate((samples_path, sample_path), axis=0)
             prog_bar.update(s_i+1)
-            if s_i >= data_gen_len:
-                #if s_i >= 10:
-                break
         models_predicts.append(model_predicts)
         samples_paths.append(samples_path)
     models_predicts= np.asarray(models_predicts)
     samples_paths = np.asarray(samples_paths)
 
+    print('Saving model predicts')
     for i, model_predicts in enumerate(models_predicts):
         f_path = os.path.join(test_pred, os.path.split(weights[i])[-1][:-3]+'__predicts.npy')
         with open(f_path, 'wb') as pred_f:
