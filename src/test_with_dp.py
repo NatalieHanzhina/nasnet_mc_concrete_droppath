@@ -5,30 +5,131 @@ import timeit
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.metrics import Mean
+from tensorflow.keras.metrics import Mean, categorical_accuracy
 from tensorflow.keras.optimizers import RMSprop
+import tensorflow_addons as tfa
+from collections import Counter
+import numpy as np
+from PIL import Image
+import os
+from sklearn.model_selection import train_test_split
+# from tensorflow.keras.utils import np_utils, generic_utils
+from tensorflow.keras.utils import to_categorical
+from skimage.transform import rescale, resize
+from sklearn import metrics as metric
 
-from datasets.dsb_binary import DSB2018BinaryDataset
-from losses import binary_crossentropy, make_loss, hard_dice_coef_ch1, hard_dice_coef_combined, hard_dice_coef
-from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, compute_mce_and_correct_ece, \
-    compute_FTP_and_FTN, compute_filtered_hard_dice, compute_TP_and_TN
+from metrics_do import actual_accuracy_and_confidence, brier_score, entropy, crossentropy, compute_mce_and_correct_ece
 from models.model_factory import make_model
 from params import args
+from tensorflow.keras.optimizers import RMSprop, Adam, SGD
+from tensorflow.keras.losses import categorical_crossentropy
 
-# import tensorflow_probability as tfp
 
-np.random.seed(1)
-random.seed(1)
-tf.random.set_seed(1)
-#test_pred = os.path.join(args.out_root_dir, args.out_masks_folder)
-
+def pollen_dataset(path="../../cropped_pollen_bayesian", gan=False):
+    dataset_dir = path
+    nb_classes = 0
+    pollen_real = []
+    target_real = []
+    for d, dirs, files in os.walk(dataset_dir):
+        nb_classes += 1
+        images = filter(lambda x: x.endswith('.png'), files)
+        for f in images:
+            path = os.path.join(d, f)
+            img = Image.open(path)
+            img = np.asarray(img, dtype='uint8')
+            img = resize(img, (32, 32),
+                         preserve_range=True,
+                         anti_aliasing=True)
+            # img = change_range(img)
+            img /= 127.5
+            img -= 1.
+            pollen_real.append(img)
+            target_real.append(d.split(os.path.sep)[-1])
+    pollen_real = np.array(pollen_real)
+    target_real = np.array(target_real)
+    nb_classes -= 1
+    counter = Counter(np.array(target_real))
+    print(counter)
+    cats = np.unique(target_real)
+    di = dict(zip(cats, np.arange(len(cats))))
+    pollen_X_train, pollen_X_val, pollen_y_train, pollen_y_val = train_test_split(pollen_real, target_real,
+                                                                                  test_size=0.15, random_state=23)
+    print(nb_classes)
+    target_new = []
+    for item in pollen_y_val:
+        target_new.append(di[item])
+    pollen_y_val = target_new
+    pollen_y_val = np.array(pollen_y_val)
+    pollen_Y_val = to_categorical(pollen_y_val, nb_classes)
+    if gan:
+        # dataset_dir = u"./SELF_ATTENTION_GET_65k"
+        dataset_dir = u"../../STYLE_GAN_GEN_65k"
+        # nb_classes = 0
+        pollen_gan = []
+        target_gan = []
+        for d, dirs, files in os.walk(dataset_dir):
+            #     nb_classes += 1
+            images = filter(lambda x: x.endswith('.jpeg'), files)
+            num = sum(1 for _ in filter(lambda x: x.endswith('.jpeg'), files))
+            for i, f in enumerate(images):
+                #         if (i < (num - 500) or num < 500):
+                path = os.path.join(d, f)
+                img = Image.open(path)
+                img = np.asarray(img, dtype='uint8')
+                img = resize(img, (32, 32),
+                             preserve_range=True,
+                             anti_aliasing=True)
+                # img = change_range(img)
+                img /= 127.5
+                img -= 1.
+                pollen_gan.append(img)
+                target_gan.append(d.split(os.path.sep)[-1])
+        pollen_gan = np.array(pollen_gan)
+        target_gan = np.array(target_gan)
+        # nb_classes -= 1
+        counter = Counter(np.array(target_gan))
+        print(counter)
+        pollen = pollen_gan
+        target = target_gan
+    else:
+        ind = np.where(pollen_y_train == 'willow')
+        ind = ind[0][400:]
+        pollen_X_train = np.delete(pollen_X_train, ind, axis=0)
+        pollen_y_train = np.delete(pollen_y_train, ind, axis=0)
+        ind = np.where(pollen_y_train == 'birch')
+        ind = ind[0][400:]
+        pollen_X_train = np.delete(pollen_X_train, ind, axis=0)
+        pollen_y_train = np.delete(pollen_y_train, ind, axis=0)
+        ind = np.where(pollen_y_train == 'maple')
+        ind = ind[0][400:]
+        pollen_X_train = np.delete(pollen_X_train, ind, axis=0)
+        pollen_y_train = np.delete(pollen_y_train, ind, axis=0)
+        pollen = pollen_X_train
+        target = pollen_y_train
+    target_new = []
+    for item in target:
+        target_new.append(di[item])
+    target = target_new
+    target = np.array(target)
+    return pollen, target, pollen_X_val, pollen_Y_val, pollen_y_val, nb_classes
 
 def main():
     gpus = tf.config.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
     t0 = timeit.default_timer()
-
+    gpu_id = args.gpu
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        # Restrict TensorFlow to only use the first GPU.
+        try:
+            # Currently, memory growth needs to be the same across GPUs.
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            tf.config.experimental.set_visible_devices(gpus[int(gpu_id)], 'GPU')
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized.
+            print('!!!!!!!!!!', e)
     predictions_repetition = args.times_sample_per_test
     weights = [os.path.join(args.models_dir, m) for m in args.models]
     models = []
@@ -43,142 +144,130 @@ def main():
         model.load_weights(w)
         models.append(model)
 
-    dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
-    data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
-    optimizer = RMSprop(lr=args.learning_rate)
+    # dataset = DSB2018BinaryDataset(args.test_images_dir, args.test_masks_dir, args.channels, seed=args.seed)
+    # data_generator = dataset.test_generator((args.resize_size, args.resize_size), args.preprocessing_function, batch_size=args.batch_size)
+
+    path = args.dir
+    gan = False
+    pollen, target, pollen_X_val, pollen_Y_val, pollen_y_val, nb_classes = pollen_dataset(path, gan)
+
+    # pollen_X_val, pollen_Y_val, pollen_y_val = pollen_X_val[:3,...], pollen_Y_val[:3,...], pollen_y_val[:3,...]
+
+    initial_learning_rate = args.learning_rate
+    optimizer = Adam(lr=initial_learning_rate)
+
+    nll_values, brier_score_values, acc_values, f1_values, mi_values, mce_values, ece_values = [], [], [], [], [], [], []
+
     print('Predicting test')
 
     for i, model in enumerate(models):
         print(f'Evaluating {weights[i]} model')
-        loss = make_loss(args.loss_function)
-        model.compile(loss=loss,
-                      optimizer=optimizer,
-                      metrics=[binary_crossentropy, hard_dice_coef_ch1, hard_dice_coef])
+        np.random.seed(23+i)
+        random.seed(23+i)
+        tf.random.set_seed(23+i)
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["accuracy",
+                                                                                     tfa.metrics.F1Score(
+                                                                                         num_classes=nb_classes,
+                                                                                         average='macro')])
 
-        metrics = {args.loss_function: [],
-                   'binary_crossentropy': [],
-                   'hard_dice_coef_ch1': [],
-                   'hard_dice_coef': [],
-                   'hard_dice_coef_combined': [],
+        metrics = {
+                   'categorical_crossentropy': [],
+                   "accuracy": [],
+                   "f1": [],
                    'brier_score': [],
                    'expected_calibration_error': [],
-                   'thresholded hard_dice': [],
-                   'FTP': [],
-                   'FTN': [],
-                   'TP, TN, unc': []
+                   'mutual_info': []
                    }
-        exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error',
-                           'thresholded hard_dice', 'FTP', 'FTN', 'TP, TN, unc']
-
-        loop_stop = data_generator.__len__()
+        exclude_metrics = ['tf_brier_score', 'expected_calibration_error', 'maximum_calibration_error']
 
         counter = -1
-        data_gen_len = data_generator.__len__()
         entropy_of_mean = []
         mean_entropy = []
-        prog_bar = tf.keras.utils.Progbar(data_gen_len)
-        thrds = (1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)
-        for x, y in data_generator:
+        prog_bar = tf.keras.utils.Progbar(len(pollen_X_val))
+        print("Repetitions", predictions_repetition)
+        for ind, (x, y) in enumerate(zip(pollen_X_val, pollen_Y_val)):
             counter += 1
-            if counter >= loop_stop:
-                break
-            x_repeated = np.repeat(x, predictions_repetition, axis=0)
+
+
+            x_repeated = np.tile(x, (predictions_repetition, 1, 1, 1))
             predicts_x_repeated = model.predict(x_repeated, verbose=0)
-            predicts_x = np.asarray([predicts_x_repeated[j*predictions_repetition:(j+1)*predictions_repetition, ...] for j in range(x.shape[0])])
-            mean_predicts = tf.math.reduce_mean(np.asarray(predicts_x), axis=1)
+            predicts_x = predicts_x_repeated
 
-            batch_mean_entropy = tf.reduce_mean(entropy(predicts_x), axis=1)
-            batch_entropy_of_mean = entropy(mean_predicts)
-            mutual_info = tf.abs(batch_mean_entropy - batch_entropy_of_mean)        # mutual-info describes uncertainty of the model about its predictions
+            mean_predicts = tf.math.reduce_mean(tf.convert_to_tensor(predicts_x, dtype=tf.float32), axis=0)
+            # deltas = predicts_x - mean_predicts
+            # print("deltas", tf.reduce_min(deltas), tf.reduce_max(deltas))
+            batch_mean_entropy = crossentropy(mean_predicts)
+            batch_entropy_of_mean = tf.reduce_mean([crossentropy(x) for x in predicts_x], axis=0)
+            mutual_info = batch_mean_entropy + batch_entropy_of_mean       # mutual-info describes uncertainty of the model about its predictions
 
-            metrics[args.loss_function].append(loss(y, mean_predicts).numpy())
-            metrics['binary_crossentropy'].append(binary_crossentropy(y, mean_predicts).numpy())
-            metrics['hard_dice_coef_ch1'].append(hard_dice_coef_ch1(y, mean_predicts).numpy())
-            metrics['hard_dice_coef'].append(hard_dice_coef(y, mean_predicts).numpy())
-            metrics['hard_dice_coef_combined'].append(hard_dice_coef_combined(y, mean_predicts).numpy())
+            metrics['mutual_info'].append(mutual_info)
+            metrics['categorical_crossentropy'].append(categorical_crossentropy(y, mean_predicts).numpy())
+            metrics['accuracy'].append(mean_predicts)
+            metrics['f1'].append(np.argmax(mean_predicts))
             metrics['brier_score'].append(brier_score(y, mean_predicts).numpy())
+            metrics['expected_calibration_error'].append([categorical_accuracy(y,mean_predicts).numpy(),(1 - mutual_info).numpy(), mean_predicts, y])
+            # print(categorical_crossentropy(y,mean_predicts).numpy())
+            accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
+            # print("accs",accs)
+            # print("confds",confds)
 
-            metrics['expected_calibration_error'].append(actual_accuracy_and_confidence(y.astype(np.int32), mean_predicts, mutual_info))
-            metrics['thresholded hard_dice'].append(compute_filtered_hard_dice(y, mean_predicts, mutual_info))
-            FTPs, FTNs = compute_FTP_and_FTN(y, mean_predicts, mutual_info)
-            metrics['FTP'].append(FTPs)
-            metrics['FTN'].append(FTNs)
-            metrics['TP, TN, unc'].append([*compute_TP_and_TN(y, mean_predicts), mutual_info[..., 0]])
+            #
+            # mean_entropy.append(tf.reduce_mean(crossentropy(predicts_x), axis=0))
+            # entropy_of_mean.append(crossentropy(mean_predicts))
 
-            mean_entropy.append(tf.reduce_mean(entropy(predicts_x[..., 0]), axis=1))
-            #tf.print('m_e:',tf.shape(mean_entropy[-1]))
-            entropy_of_mean.append(entropy(mean_predicts[..., 0]))
-            #tf.print('e_o_m:',tf.shape(entropy_of_mean[-1]))
-
-            # [(k,v[-1]) for k,v in metrics.items() if k not in exclude_metrics]
-            prog_bar.update(counter+1, [(k, round(v[-1], 4)) for k,v in metrics.items() if k not in exclude_metrics])
+            prog_bar.update(counter+1)
 
             del x, y, predicts_x, mean_predicts
             gc.collect()
 
-        loss_value, bce_value, hdc1_value, hdc_value, hdcc_value, brier_score_value = \
-            Mean()(metrics[args.loss_function]), \
-            Mean()(metrics['binary_crossentropy']), \
-            Mean()(metrics['hard_dice_coef_ch1']), \
-            Mean()(metrics['hard_dice_coef']), \
-            Mean()(metrics['hard_dice_coef_combined']), \
-            Mean()(metrics['brier_score'])
+        nll_value, brier_score_value = \
+        Mean()(metrics['categorical_crossentropy']), \
+        Mean()(metrics['brier_score'])
+
+        acc_value, f1_value =  \
+            Mean()(categorical_accuracy(pollen_Y_val, metrics['accuracy'])).numpy(), \
+            metric.f1_score(pollen_y_val, metrics['f1'], average="macro")
+
+        mi_value = Mean()(metrics['mutual_info'])
 
         ece_bins = 20
-        #accs, confds, pred_probs = zip(*metrics['expected_calibration_error'])
-        #accs, confds, pred_probs = np.concatenate(np.asarray(accs), axis=0), np.concatenate(np.asarray(confds), axis=0), np.concatenate(np.asarray(pred_probs), axis=0)
-        #print(accs.shape, confds.shape, pred_probs.shape)
-        #print('\n',tf.reduce_mean(confds))
-        #correct_ece_value = compute_correct_ece(accs, confds, ece_bins, pred_probs)
-
-
         accs, confds, pred_probs, y_true = zip(*metrics['expected_calibration_error'])
-        accs, confds, pred_probs, y_true = np.concatenate(np.asarray(accs), axis=0), \
-                                           np.concatenate(np.asarray(confds), axis=0), \
-                                           np.concatenate(np.asarray(pred_probs), axis=0), \
-                                           np.concatenate(np.asarray(y_true), axis=0)
-        mce_value, correct_ece_value = compute_mce_and_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
-
-        F_dice = {k: np.mean([metrics['thresholded hard_dice'][j][k] for j in range(len(metrics['thresholded hard_dice']))]) for k in metrics['thresholded hard_dice'][0].keys()}
-
-        FTPs = {k: np.sum([metrics['FTP'][j][k] for j in range(len(metrics['FTP']))]) for k in metrics['FTP'][0].keys()}
-        ratio_of_FTPs = {k: (FTPs[1] - FTPs[k]) / FTPs[1] if FTPs[1] > 0 else 0 for k in FTPs.keys()}
-        FTNs = {k: np.sum([metrics['FTN'][j][k] for j in range(len(metrics['FTN']))]) for k in metrics['FTN'][0].keys()}
-        ratio_of_FTNs = {k: (FTNs[1] - FTNs[k]) / FTNs[1] if FTNs[1] > 0 else 0 for k in FTNs.keys()}
-
-        tp_tn_unc = np.asarray(metrics['TP, TN, unc'])
-        TPs = {}
-        TNs = {}
-        for thrd in sorted(thrds):
-            TPs[thrd] = np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 0], 0))
-            TNs[thrd] = np.sum(np.where(tp_tn_unc[:, 2] < thrd, tp_tn_unc[:, 1], 0))
-
-        #tf.print(tf.convert_to_tensor(eces).shape)
-
-        #tf.print(np.asarray(mean_entropy).shape, np.asarray(entropy_of_mean).shape)
-        mean_entropy_subtr = np.mean(np.asarray(mean_entropy)-np.asarray(entropy_of_mean))
-        #mean_entropy_subtr = tf.reduce_mean(mean_entropy-entropy_of_mean)
+        mce_value, ece_value = compute_mce_and_correct_ece(accs, confds, ece_bins, pred_probs, y_true)
 
         print(f'Performed {predictions_repetition} repetitions per sample')
         print(f'Dropout rate: {args.dropout_rate}')
         print(f'{weights[i]} evaluation results:')
-        print(f'{args.loss_function}: {loss_value:.4f}, '
-              f'binary_crossentropy: {bce_value:.4f}, '
-              f'hard_dice_coef_ch1: {hdc1_value:.4f}, '
-              f'hard_dice_coef: {hdc_value:.4f}',
-              f'hard_dice_coef_combined: {hdcc_value:.4f}')
-        print('Monte-Calro estimation')
-        print(f'brier_score: {brier_score_value:.4f}, '
-              f'\nexp_calibration_error: {correct_ece_value:.4f}',
-              f'\nmax_calibration_error: {mce_value:.4f}',
-              f'\nDices: '+'\t'.join([f'{k}: {v:.4f}' for k, v in F_dice.items()]),
-              f'\nratios of FTPs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTPs.items()]),
-              f'\nratios of FTNs: '+'\t'.join([f'{k}: {v:.4f}' for k, v in ratio_of_FTNs.items()]),
-              '\n____________________________________'
-              f'\nnew formula ratios of TPs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in TPs.items()]),
-              f'\nnew formula ratios of TNs: ' + '\t'.join([f'{k}: {v:.4f}' for k, v in TNs.items()]),
-              f'\nmean_entropy_subtr: {mean_entropy_subtr:.4f}')
 
+        print(f'categorical_crossentropy: {nll_value:.4f}, ')
+        print(acc_value)
+        print(f'accuracy: {acc_value:.4f}, ')
+        print(f'f1_score: {f1_value:.4f}')
+
+        print('Monte-Calro estimation')
+        print(f'brier_score: {brier_score_value:.4f}, ',
+              f'\nexp_calibration_error: {ece_value:.4f}',
+              f'\nmax_calibration_error: {mce_value:.4f}',
+              f'\nmutual_information: {mi_value:.4f}')
+
+        nll_values.append(nll_value)
+        brier_score_values.append(brier_score_value)
+        acc_values.append(acc_value)
+        f1_values.append(f1_value)
+        mi_values.append(mi_value)
+        mce_values.append(mce_value)
+        ece_values.append(ece_value)
+
+    print(f'Average evaluation results:')
+    print(
+          f'categorical_crossentropy: {np.mean(nll_values):.5f}+-{np.std(nll_values):.5f}, ',
+          f'accuracy: {np.mean(acc_values):.5f}+-{np.std(acc_values):.5f}, '
+          f'f1_score: {np.mean(f1_values):.5f}+-{np.std(f1_values):.5f}',
+    )
+    print('Monte-Calro estimation')
+    print(f'brier_score: {np.mean(brier_score_values):.5f}+-{np.std(brier_score_values):.5f}, ',
+          f'\nexp_calibration_error: {np.mean(ece_values):.5f}+-{np.std(ece_values):.5f}',
+          f'\nmax_calibration_error: {np.mean(mce_values):.5f}+-{np.std(mce_values):.5f}',
+          f'\nmutual_information: {np.mean(mi_values):.5f}+-{np.std(mi_values):.5f}')
     elapsed = timeit.default_timer() - t0
     print('Time: {:.3f} min'.format(elapsed / 60))
     exit(0)

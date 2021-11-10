@@ -53,6 +53,8 @@ class ScheduledDropout(Layer):
             binary_tensor = tf.cast(tf.floor(random_tensor), inputs.dtype)
             keep_prob_inv = tf.cast(1.0 / (1-scheduled_drop_rate), inputs.dtype)
             outputs = inputs * keep_prob_inv * binary_tensor
+            # tf.print(input.shape, tf.reduce_sum(binary_tensor))
+            # tf.print(input.shape)
             tf.Assert(tf.convert_to_tensor(
                 tf.reduce_sum(binary_tensor)) >=
                       tf.convert_to_tensor(tf.reduce_sum(
@@ -254,11 +256,11 @@ class ConcreteDroppath(Layer):
 
     def get_config(self): #TODO: refactor
         config = {
-            'drop_rate': self.drop_rate,
-            'cell_num': self._cell_num,
-            'total_num_cells': self._total_num_cells,
-            'total_training_steps': self._total_training_steps,
-            'seed': self.seed
+            # 'drop_rate': self.drop_rate,
+            # 'cell_num': self._cell_num,
+            # 'total_num_cells': self._total_num_cells,
+            # 'total_training_steps': self._total_training_steps,
+            # 'seed': self.seed
         }
         base_config = super(ConcreteDroppath, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

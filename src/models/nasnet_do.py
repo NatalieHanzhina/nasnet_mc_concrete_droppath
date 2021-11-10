@@ -39,7 +39,7 @@ from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Cropping2D
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import Dropout
+from tensorflow.keras.layers import Dropout,SpatialDropout2D
 from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import GlobalMaxPooling2D
 from tensorflow.keras.layers import Input
@@ -59,7 +59,7 @@ TF_NASNET_LARGE_WEIGHT_PATH_NO_TOP = 'https://storage.googleapis.com/tensorflow/
 
 def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', input_tensor=None,
                     input_shape=None, total_training_steps=None, penultimate_filters=4032, num_blocks=6, stem_block_filters=96,
-                    skip_reduction=True, filter_multiplier=2, pooling=None, classes=1000):
+                    skip_reduction=True, filter_multiplier=2, pooling=None, classes=1000, activation='softmax'):
     """Instantiates a NASNet model.
 
     Optionally loads weights pre-trained
@@ -162,7 +162,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                       data_format=K.image_data_format(),
                                       require_flatten=False,
                                       weights=None)  # weights=None to prevent input channels equality check
-
+    print('input shape', input_shape)
     if input_tensor is None:
         img_input = Input(shape=input_shape)
     else:
@@ -233,14 +233,14 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
     #conv5
     x = Activation('relu')(x)
 
-    if include_top:
-        x = GlobalAveragePooling2D()(x)
-        x = Dense(classes, activation='sigmoid', name='predictions')(x)
-    else:
-        if pooling == 'avg':
-            x = GlobalAveragePooling2D()(x)
-        elif pooling == 'max':
-            x = GlobalMaxPooling2D()(x)
+    # if include_top:
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(classes, activation=activation, name='predictions')(x) #!!!
+    # else:
+    #     if pooling == 'avg':
+    #         x = GlobalAveragePooling2D()(x)
+    #     elif pooling == 'max':
+    #         x = GlobalMaxPooling2D()(x)
 
     # Ensure that the model takes into account
     # any potential predecessors of `input_tensor`.
@@ -264,7 +264,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
     #return model #TODO: remove to implement weighs copy by name
 
     # load weights
-    if weights is not None and input_shape[-1] > 3:
+    if weights is not None and input_shape[-1] >= 3:
         if weights == 'imagenet':
             if include_top:
                 print('Loading pretrained ImageNet weights, include top for NASNet backbone')
@@ -279,7 +279,9 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                                         cache_subdir='models',
                                         file_hash='d81d89dc07e6e56530c4e77faddd61b5')
         else:
-            raise ValueError('This is an unexpected value for "weights" parameter')
+            # raise ValueError('This is an unexpected value for "weights" parameter')
+            print(
+                'Parameter "pretrained_weights" is expected to be "imagenet". However you can pass path to weights if you are sure about what you are doing')
         if input_shape[-1] > 3:
             print(
                 f'Copying pretrained ImageNet weights to model with {input_shape[-1]} input channels for NASNet backbone')
@@ -336,7 +338,7 @@ def NASNet_large_do(net_type, include_top=True, do_p=0.3, weights='imagenet', in
                         w.assign(d_w.value)
             del donor_model
         else:
-            model.load_weights(weights_path)
+            model.load_weights(weights_path, by_name=True)
     elif weights is not None:
         model.load_weights(weights)
     else:
@@ -375,7 +377,8 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
         if net_type == NetType.mc:
             x = Dropout(do_p)(x, training=True)
         elif net_type == NetType.mc_df:
-            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+            x = SpatialDropout2D(do_p)(x, training=True)
+            # x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
         x = Activation('relu')(x)
         x = SeparableConv2D(filters, kernel_size, name='separable_conv_2_%s' % block_id, padding='same',
                                    use_bias=False, kernel_initializer='he_normal')(x)
@@ -389,10 +392,20 @@ def _separable_conv_block_do(ip, filters, net_type, kernel_size=(3, 3), strides=
         if net_type == NetType.mc:
             x = Dropout(do_p)(x, training=True)
         elif net_type == NetType.mc_df:
-            x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+            # try:
+            #     tf.print(x)
+            # except:
+            #     tf.print('Error occurred')
+            x = SpatialDropout2D(do_p)(x, training=True)
+            # x = Dropout(do_p, noise_shape=(x.shape[0], 1, 1, x.shape[-1]))(x, training=True)
+            # try:
+            #     tf.print(x)
+            # except:
+            #     tf.print('Error occurred')
+            # tf.print("---------------------")
         x = Activation('relu')(x)
 
-        if net_type == NetType.sdp:
+        if net_type == NetType.vanilla: #VANILLA NASNET
             if cell_num is None or total_num_cells is None:
                 raise ValueError('Please specify cell number for correct Scheduled MC dropout')
             x = ScheduledDropout(do_p, cell_num=cell_num, total_num_cells=total_num_cells,
@@ -657,6 +670,7 @@ def _reduction_a_cell_do(ip, p, filters, net_type, cell_num, total_num_cells, to
                                             block_id='reduction_right3_%s' % block_id)
             x3 = layers.add([x3_1, x3_2], name='reduction_add3_%s' % block_id)
 
+
         with K.name_scope('block_4'):
             x4 = AveragePooling2D((3, 3), strides=(1, 1), padding='same', name='reduction_left4_%s' % block_id)(x1)
             x2_add = x2
@@ -803,4 +817,4 @@ def get_donor_model(include_top=True, input_tensor=None, input_shape=None, penul
 
 
 if __name__ == '__main__':
-    NASNet_large_do(include_top=False, input_shape=(256, 256, 3)).summary()
+    NASNet_large_do(include_top=True, input_shape=(32, 32, 3)).summary()

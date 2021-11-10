@@ -4,32 +4,41 @@ import tensorflow.keras.backend as K
 
 
 def brier_score(y_true, y_pred):
-    y_true_f = K.flatten(K.round(y_true[..., 0]))
-    y_pred_f = K.flatten(K.round(y_pred[..., 0]))
-    return K.mean(K.pow(y_pred_f - y_true_f, 2))
+    y_true_f = K.flatten(K.round(y_true))
+    y_pred_f = K.flatten(K.round(y_pred))
+    # print(y_true_f)
+    # print(y_pred_f)
+    # print(K.mean(K.sum(K.pow(y_pred_f - y_true_f, 2))))
+    # np.mean(np.sum((probs - targets) ** 2, axis=1))
+    return K.mean(K.sum(K.pow(y_pred_f - y_true_f, 2)))
 
 
 def actual_accuracy_and_confidence(y_true, y_pred, uncertainty):
-    acc = K.cast(y_true[..., 0] == K.round(y_pred[..., 0]), dtype='float32')
+    acc = K.cast(y_true == K.round(y_pred), dtype='float32')
+    # print(y_true, y_pred)
+    # print(K.cast(y_true == K.round(y_pred), dtype='float32'))
+    # print(K.cast(y_true == K.round(y_pred), dtype='float32'))
     #return acc, conf
-    return acc, 1 - uncertainty[..., 0], y_pred[..., 0], y_true[..., 0]
+    return acc, 1 - uncertainty, y_pred, y_true
 
 
 def entropy(y_pred):
-    return -y_pred * tf.math.log(y_pred + 1e-10)
+    return (-y_pred * tf.math.log(y_pred + 1e-10))
 
+def crossentropy(y_pred):
+    return - K.sum(y_pred * tf.math.log(y_pred + 1e-10))
 
 def compute_TP_and_TN(y_true, y_pred):
     y_pred_rounded = np.round(y_pred)
-    TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
-    TNs = (y_true[..., 0] == 0) & (y_pred_rounded[..., 0] == 0)
+    TPs = (y_true == 1) & (y_pred_rounded == 1)
+    TNs = (y_true == 0) & (y_pred_rounded == 0)
     return TPs, TNs
 
 
 def compute_FTP_and_FTN(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0)):
     y_pred_rounded = np.round(y_pred)
-    TPs = (y_true[..., 0] == 1) & (y_pred_rounded[..., 0] == 1)
-    TNs = (y_true[..., 0] == 0) & (y_pred_rounded[..., 0] == 0)
+    TPs = (y_true == 1) & (y_pred_rounded == 1)
+    TNs = (y_true == 0) & (y_pred_rounded == 0)
     if 1 not in thrds:
         thrds.append(1)
     FTPs = {}
@@ -39,15 +48,15 @@ def compute_FTP_and_FTN(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75, 0.6, 0
             FTPs[thrd] = np.sum(TPs)
             FTNs[thrd] = np.sum(TNs)
         else:
-            FTPs[thrd] = np.sum(TPs & (uncertainty[..., 0] < thrd).numpy())
-            FTNs[thrd] = np.sum(TNs & (uncertainty[..., 0] < thrd).numpy())
+            FTPs[thrd] = np.sum(TPs & (uncertainty < thrd).numpy())
+            FTNs[thrd] = np.sum(TNs & (uncertainty < thrd).numpy())
     return FTPs, FTNs
 
 
 def compute_filtered_hard_dice(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75, 0.6, 0.5, 0.4, 0.25, 0.2, 0.0), smooth=1e-3):
-    y_true_f = K.flatten(K.round(y_true[..., 0]))
-    y_pred_f = K.flatten(K.round(y_pred[..., 0]))
-    uncertainty_f = K.flatten(uncertainty[..., 0])
+    y_true_f = K.flatten(K.round(y_true))
+    y_pred_f = K.flatten(K.round(y_pred))
+    uncertainty_f = K.flatten(uncertainty)
     filtered_hard_dices = {}
     for thrd in sorted(thrds):
         if thrd == 1:
@@ -63,15 +72,15 @@ def compute_filtered_hard_dice(y_true, y_pred, uncertainty, thrds=(1, 0.8, 0.75,
 
 #def compute_correct_ece(accs, confds, n_bins, pred_probs):
 def compute_mce_and_correct_ece(accs, confds, n_bins, pred_probs, y_true):
-    plot_x_pred_prob = []
-    plot_x_conf = []
-    plot_y = []
+    # plot_x_pred_prob = []
+    # plot_x_conf = []
+    # plot_y = []
     bin_eces = []
     bin_mces = []
-    accs = accs.flatten()
-    confds = confds.flatten()
-    pred_probs = pred_probs.flatten()
-    y_true = y_true.flatten()
+    accs = np.array(accs)
+    confds = np.array(confds)
+    # pred_probs = pred_probs.flatten()
+    # y_true = y_true.flatten()
     probs_min = np.min(confds)
     h_w_wise_bins_len = (np.max(confds) - probs_min) / n_bins
     for j in range(n_bins):
@@ -88,24 +97,25 @@ def compute_mce_and_correct_ece(accs, confds, n_bins, pred_probs, y_true):
         #print(np.unique(included_accs, return_counts=True))
         #print(np.unique(np.round(np.asarray(pred_probs[include_flags])) == np.asarray(y_true[include_flags]), return_counts=True))
         #print(np.unique(np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags]))<=0.25, return_counts=True))
-        a = (np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags])))
+        # a = (np.abs(np.asarray(pred_probs[include_flags]) - np.asarray(y_true[include_flags])))
         #print(np.min(a), np.max(a))
         mean_accuracy = included_accs.mean()
         #print(tf.reduce_mean(included_accs))
         mean_confidence = included_probs.mean()
-        bin_scaled_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)
+        bin_scaled_ece = np.abs(mean_accuracy-mean_confidence)*np.sum(include_flags, axis=-1)/accs.shape[-1]
+        # bin_scaled_ece = np.abs(mean_accuracy-mean_confidence)*len(include_flags)/
         bin_eces.append(bin_scaled_ece)
         bin_mces.append(np.abs(mean_accuracy-mean_confidence))
 
-        plot_x_pred_prob.append(pred_probs[include_flags].mean())
-        plot_x_conf.append(mean_confidence)
-        plot_y.append(mean_accuracy)
-    pixel_wise_ece = np.sum(np.asarray(bin_eces), axis=0) / accs.shape[-1]
+        # plot_x_pred_prob.append(pred_probs[include_flags].mean())
+        # plot_x_conf.append(mean_confidence)
+        # plot_y.append(mean_accuracy)
+    # pixel_wise_ece = np.sum(np.asarray(bin_eces), axis=0) / accs.shape[-1]
     #print('\nPixel-wise eces:\n', np.asarray(bin_eces)/accs.shape[-1])
     #print('\nX pred_prob:\n', np.asarray(plot_x_pred_prob))
     #print('\nX conf:\n', np.asarray(plot_x_conf))
     #print('\nY:\n', np.asarray(plot_y))
-    return max(bin_mces), pixel_wise_ece.mean()
+    return max(bin_mces), np.sum(bin_eces)
 
 
 
