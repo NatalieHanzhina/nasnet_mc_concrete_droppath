@@ -1,5 +1,5 @@
 
-# The code for the Monte Carlo Concrete DropPath method
+# Monte Carlo Concrete DropPath 
  The method is for epistemic uncertainty estimation and is based on the Scheduled DropPath technique + Concrete distribution.
  
 
