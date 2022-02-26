@@ -1,0 +1,48 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.15
+    code_path: code/train.py
+    framework: tensorflow
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.7.10
+    t:
+      1:
+      - 3
+      - 5
+      2:
+      - 3
+      - 5
+      3:
+      - 3
+      4: 3.7.10
+      5: 0.10.15
+augmentation:
+  desc: null
+  value: 'True'
+batch_size:
+  desc: null
+  value: 64
+epoch:
+  desc: null
+  value: 150
+intial_lr:
+  desc: null
+  value: 0.01
+lrscheduler:
+  desc: null
+  value: CosineDecayRestarts
+metric:
+  desc: null
+  value:
+  - accuracy
+  - f1
+optimizer:
+  desc: null
+  value: <tensorflow.python.keras.optimizer_v2.adam.Adam object at 0x7f849e94eb10>
+weights:
+  desc: null
+  value: /mnt/tank/scratch/nkhanzhina//stylegan_best__nasnet_do_cls1.h5

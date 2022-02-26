@@ -1,0 +1,12 @@
+F1-score=0.8603 Acc=0.873303
+F1-score=0.8689 Acc=0.879336
+F1-score=0.8556 Acc=0.870091
+F1-score=0.8480 Acc=0.859517
+F1-score=0.8521 Acc=0.867069
+Mean_F1-score=0.8570 Mean_Acc=0.869863
+Val_F1-score=0.8519 Val_Acc=0.891503
+Val_F1-score=0.8685 Val_Acc=0.896732
+Val_F1-score=0.8587 Val_Acc=0.896732
+Val_F1-score=0.8537 Val_Acc=0.898039
+Val_F1-score=0.8596 Val_Acc=0.895425
+Val_Mean_F1-score=0.8585 Val_Mean_Acc=0.895686
